@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatedBackground } from "./ui";
-import { signInWithGoogle } from "@/lib/auth";
+import { signUpWithGoogle } from "@/lib/auth";
 
 interface SignUpProps {
   className?: string;
@@ -22,12 +22,17 @@ export function SignUp({ className, onGoogleSignUp }: SignUpProps) {
       return;
     }
 
+    console.log("Starting Google sign-up process");
     setIsLoading(true);
     try {
-      const user = await signInWithGoogle();
+      const user = await signUpWithGoogle();
+      console.log("Sign-up successful:", user);
       if (user) {
-        // Redirect to attendee page on successful sign-up
-        router.push("/attendee");
+        console.log("Redirecting to /organizer/dashboard");
+        // Redirect to organizer dashboard on successful sign-up
+        router.push("/organizer/dashboard");
+      } else {
+        console.log("No user returned from sign-up");
       }
     } catch (error) {
       console.error("Sign-up error:", error);
