@@ -1,0 +1,6 @@
+opencv-python==4.8.0.74
+pyzbar==0.1.9
+supabase==1.0.3
+cryptography==41.0.3
+Pillow==10.0.0
+qrcode==7.4.2
