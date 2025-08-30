@@ -1,14 +1,11 @@
-import { AnimatedBackground } from "@/components/ui";
+import React from 'react'
 
-
-export default function Home() {
+const Home = () => {
   return (
-    <div>
-      <AnimatedBackground >
-        <div>
-          Landing Page
-        </div>
-      </AnimatedBackground>
+    <div className='flex min-h-screen items-center justify-center text-3xl font-bold'>
+      Welcome to EventHive!
     </div>
   )
 }
+
+export default Home
