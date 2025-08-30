@@ -6,7 +6,7 @@ import type { Event } from "@/components/event-card"
 export type Booking = {
   bookingId: string
   event: Event
-  tickets: { index: number; tier: "Basic" | "Standard" | "VIP" }[]
+  tickets: { index: number; tier: string }[]
   attendees: { name: string; email: string; phone: string; dob: string }[]
   amount: number
   payment: { provider: string; status: "paid" | "failed" | "pending" }

@@ -58,7 +58,13 @@ export function SignIn({ className, onGoogleSignIn }: SignInProps) {
                 Welcome back
               </h1>
               <p className="text-[1.5rem] text-white/70 font-light">
-                Sign in to EventHive
+                Sign in to{" "}
+                <Link 
+                  href="/attendee" 
+                  className="text-white hover:text-white/80 transition-colors cursor-pointer"
+                >
+                  EventHive
+                </Link>
               </p>
             </div>
             
