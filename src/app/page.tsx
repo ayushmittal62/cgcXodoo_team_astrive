@@ -1,5 +1,14 @@
-import { SignInPage } from "@/components/sign-in-flow-1";
+import { AnimatedBackground } from "@/components/ui";
+
 
 export default function Home() {
-  return <SignInPage />;
+  return (
+    <div>
+      <AnimatedBackground >
+        <div>
+          Landing Page
+        </div>
+      </AnimatedBackground>
+    </div>
+  )
 }

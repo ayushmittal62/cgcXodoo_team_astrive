@@ -1,12 +1,8 @@
-import { SignInPage } from '@/components/sign-in-flow-1'
+import { SignIn } from '@/components/sign-in-form'
 import React from 'react'
 
-const SignIn = () => {
-  return (
-    <div className='flex w-full h-screen justify-center items-center'>
-      <SignInPage />
-    </div>
-  )
+const SignInPage = () => {
+  return <SignIn />
 }
 
-export default SignIn
+export default SignInPage
