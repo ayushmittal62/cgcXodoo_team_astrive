@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { events } from "@/lib/mock-data"
+import { getEventById, incrementEventViews, type Event } from "@/lib/events-service"
 
 // You'll need to add this to your environment variables
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
@@ -259,7 +259,43 @@ function GoogleMap({ location }: { location: string }) {
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params)
-  const event = events.find((e) => e.id === id)
+  const [event, setEvent] = useState<Event | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch event data
+  useEffect(() => {
+    const fetchEvent = async () => {
+      setIsLoading(true)
+      try {
+        const eventData = await getEventById(id)
+        if (!eventData) {
+          return notFound()
+        }
+        setEvent(eventData)
+        
+        // Track event view
+        await incrementEventViews(id)
+      } catch (error) {
+        console.error('Error fetching event:', error)
+        return notFound()
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchEvent()
+  }, [id])
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 text-slate-200">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-cyan-500"></div>
+        </div>
+      </main>
+    )
+  }
+
   if (!event) return notFound()
 
   const getStatusColor = (status: string) => {
@@ -281,7 +317,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       <header className="border-b border-white/10 bg-neutral-950/90 backdrop-blur-md sticky top-0 z-50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link 
-            href="/" 
+            href="/attendee" 
             className="flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors duration-200"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -426,7 +462,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             {/* Google Maps Location */}
-            <GoogleMap location={event.location} />
+            {event.location && <GoogleMap location={event.location} />}
           </div>
 
           {/* Sidebar */}
