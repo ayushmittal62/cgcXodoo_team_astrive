@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatedBackground } from "./ui";
-import { signInWithGoogle } from "@/lib/auth";
+import { signUpWithGoogle } from "@/lib/auth";
 
 interface SignUpProps {
   className?: string;
@@ -24,7 +24,7 @@ export function SignUp({ className, onGoogleSignUp }: SignUpProps) {
 
     setIsLoading(true);
     try {
-      const user = await signInWithGoogle();
+      const user = await signUpWithGoogle();
       if (user) {
         // Redirect to attendee page on successful sign-up
         router.push("/attendee");
