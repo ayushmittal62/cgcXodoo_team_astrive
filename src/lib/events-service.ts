@@ -1,5 +1,33 @@
 import { supabase } from './supabase'
 
+// Email automation trigger function
+async function triggerEmailAutomation(bookingId: string): Promise<void> {
+  try {
+    console.log(`📧 Triggering email automation for booking: ${bookingId}`)
+    
+    // Call our Next.js API endpoint to trigger email automation
+    const response = await fetch('/api/send-ticket-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ bookingId })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Email API error: ${errorData.error || 'Unknown error'}`)
+    }
+    
+    const result = await response.json()
+    console.log('✅ Email automation result:', result.message)
+    
+  } catch (error) {
+    console.error('❌ Failed to trigger email automation:', error)
+    throw error
+  }
+}
+
 export interface Event {
   id: string
   poster: string | null
@@ -392,6 +420,16 @@ export async function createBooking(bookingData: EventBookingData): Promise<stri
     }
 
     console.log(`🎉 Complete booking process finished! Booking ID: ${booking.id}`)
+    
+    // Step 7: Trigger email automation
+    try {
+      await triggerEmailAutomation(booking.id)
+      console.log('✅ Email automation triggered successfully')
+    } catch (emailError) {
+      console.warn('⚠️ Email automation failed:', emailError)
+      // Don't fail the booking if email fails
+    }
+    
     return booking.id
 
   } catch (error) {
