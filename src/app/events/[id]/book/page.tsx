@@ -4,7 +4,7 @@ import React from "react"
 
 import { useMemo, useState } from "react"
 import { notFound, useRouter } from "next/navigation"
-import { events } from "@/lib/mock-data"
+import { getEventById, createBooking, type Event } from "@/lib/events-service"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useBookings } from "@/components/use-bookings-store"
@@ -182,6 +182,8 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [tier, setTier] = useState<Tier>("")
   const [count, setCount] = useState(1)
+  const [event, setEvent] = useState<Event | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [attendees, setAttendees] = useState<AttendeeData[]>(
     Array.from({ length: count }, (_, i) => ({ index: i, name: "", email: "", phone: "", dob: "" })),
   )
@@ -193,11 +195,29 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const [touchedFields, setTouchedFields] = useState<{ [attendeeIndex: number]: { [field: string]: boolean } }>({})
   const [showAllErrors, setShowAllErrors] = useState(false)
 
-  const event = events.find((e) => e.id === id)
-  if (!event) return notFound()
-
   const router = useRouter()
   const { addBooking } = useBookings()
+
+  // Fetch event data
+  React.useEffect(() => {
+    const fetchEvent = async () => {
+      setIsLoading(true)
+      try {
+        const eventData = await getEventById(id)
+        if (!eventData) {
+          return notFound()
+        }
+        setEvent(eventData)
+      } catch (error) {
+        console.error('Error fetching event:', error)
+        return notFound()
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchEvent()
+  }, [id])
 
   // Set default tier to first available ticket option
   React.useEffect(() => {
@@ -216,7 +236,9 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
     setDuplicateEmailErrors(duplicates)
   }, [attendees])
 
+  // Calculate selected price
   const selectedPrice = useMemo(() => {
+    if (!event) return 0
     return event.tickets.find((t) => t.tier === tier)?.price ?? 0
   }, [event, tier])
   const totalPrice = selectedPrice * count
@@ -225,6 +247,18 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const canProceedToPayment = useMemo(() => {
     return validateAllAttendees(attendees) && Object.keys(duplicateEmailErrors).length === 0
   }, [attendees, duplicateEmailErrors])
+
+  if (isLoading) {
+    return (
+      <main className="min-h-dvh bg-neutral-950 text-slate-200">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-cyan-500"></div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!event) return notFound()
 
   function applyCount(newCount: number) {
     const n = Math.max(1, Math.min(6, newCount))
@@ -296,24 +330,67 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
   async function mockPay() {
     // Final validation check before payment
-    if (!canProceedToPayment) {
+    if (!canProceedToPayment || !event) {
       setShowAllErrors(true)
       return
     }
 
     setPaymentStatus("processing")
-    await new Promise((r) => setTimeout(r, 1400))
-    setPaymentStatus("success")
-    addBooking({
-      event: event!,
-      tickets: attendees.map((a) => ({ index: a.index, tier })),
-      attendees: attendees.map((a) => ({ name: a.name, email: a.email, phone: a.phone, dob: a.dob })),
-      amount: totalPrice,
-      payment: { provider: "Simulated (Razorpay/Stripe/UPI)", status: "paid" },
-    })
-    setTimeout(() => {
-      router.push("/attendee?tab=my-bookings&success=booking-complete")
-    }, 800)
+    
+    try {
+      // For now, we'll use a mock user ID - in production, this should come from auth
+      const mockUserId = "00000000-0000-0000-0000-000000000001"
+      
+      // Get the selected ticket
+      const selectedTicket = event.tickets.find(t => t.tier === tier)
+      if (!selectedTicket) {
+        throw new Error("Selected ticket not found")
+      }
+
+      const bookingData = {
+        event,
+        tickets: attendees.map((a, index) => ({ 
+          index: a.index, 
+          tier, 
+          ticket_id: selectedTicket.id 
+        })),
+        attendees: attendees.map((a) => ({ 
+          name: a.name, 
+          email: a.email, 
+          phone: a.phone, 
+          dob: a.dob 
+        })),
+        amount: totalPrice,
+        userId: mockUserId
+      }
+
+      // Create booking in Supabase
+      const bookingId = await createBooking(bookingData)
+      
+      if (!bookingId) {
+        throw new Error("Failed to create booking")
+      }
+
+      setPaymentStatus("success")
+      
+      // Also add to local storage for immediate UI update
+      addBooking({
+        event: event!,
+        tickets: attendees.map((a) => ({ index: a.index, tier })),
+        attendees: attendees.map((a) => ({ name: a.name, email: a.email, phone: a.phone, dob: a.dob })),
+        amount: totalPrice,
+        payment: { provider: "Supabase Integration", status: "paid" },
+      })
+
+      setTimeout(() => {
+        router.push("/attendee?tab=my-bookings&success=booking-complete")
+      }, 800)
+    } catch (error) {
+      console.error('Payment failed:', error)
+      setPaymentStatus("idle")
+      // You could add error state handling here
+      alert('Payment failed. Please try again.')
+    }
   }
 
   return (

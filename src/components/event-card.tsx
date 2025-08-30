@@ -1,20 +1,11 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
+import type { Event } from "@/lib/events-service"
 
-type TicketInfo = { tier: string; price: number; stock: number }
-export type Event = {
-  id: string
-  poster: string
-  logo: string
-  title: string
-  description: string
-  category: string
-  date: string
-  time: string
-  location: string
-  status: "ongoing" | "upcoming" | "past"
-  tickets: TicketInfo[]
-}
+type TicketInfo = { id: string; tier: string; price: number; stock: number; per_user_limit: number }
+
+// Re-export the Event type from events-service
+export type { Event }
 
 export function EventCard({
   event,
@@ -33,7 +24,7 @@ export function EventCard({
           glow: 'shadow-green-500/20',
           pulse: 'animate-pulse'
         }
-      case 'upcoming':
+      case 'published':
         return {
           bg: 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20',
           border: 'border-blue-500/30',
@@ -41,12 +32,20 @@ export function EventCard({
           glow: 'shadow-blue-500/20',
           pulse: ''
         }
-      case 'past':
+      case 'completed':
         return {
           bg: 'bg-gradient-to-r from-gray-500/20 to-slate-500/20',
           border: 'border-gray-500/30',
           text: 'text-gray-400',
           glow: 'shadow-gray-500/20',
+          pulse: ''
+        }
+      case 'cancelled':
+        return {
+          bg: 'bg-gradient-to-r from-red-500/20 to-rose-500/20',
+          border: 'border-red-500/30',
+          text: 'text-red-400',
+          glow: 'shadow-red-500/20',
           pulse: ''
         }
       default:
@@ -91,7 +90,7 @@ export function EventCard({
   }
 
   const statusConfig = getStatusConfig(event.status)
-  const categoryConfig = getCategoryConfig(event.category)
+  const categoryConfig = getCategoryConfig(event.category || 'default')
   const minPrice = Math.min(...event.tickets.map((t) => t.price))
   const maxPrice = Math.max(...event.tickets.map((t) => t.price))
   const totalStock = event.tickets.reduce((sum, t) => sum + t.stock, 0)
@@ -112,8 +111,8 @@ export function EventCard({
       <div className="absolute top-3 right-3 z-20">
         <div className={`px-3 py-1 rounded-full text-xs font-semibold border backdrop-blur-md ${statusConfig.bg} ${statusConfig.border} ${statusConfig.text} ${statusConfig.glow} ${statusConfig.pulse} shadow-lg`}>
           {event.status === 'ongoing' && <span className="mr-1">🔴</span>}
-          {event.status === 'upcoming' && <span className="mr-1">📅</span>}
-          {event.status === 'past' && <span className="mr-1">✓</span>}
+          {event.status === 'published' && <span className="mr-1">📅</span>}
+          {event.status === 'completed' && <span className="mr-1">✓</span>}
           {event.status.toUpperCase()}
         </div>
       </div>

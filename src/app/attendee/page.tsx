@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { EventCard } from "@/components/event-card"
-import { events } from "@/lib/mock-data"
+import { getEvents, getUserBookings, type Event } from "@/lib/events-service"
 import { useBookings } from "@/components/use-bookings-store"
 import jsPDF from 'jspdf'
 
@@ -19,20 +19,65 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<FilterKey>("ongoing")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
+  const [events, setEvents] = useState<Event[]>([])
+  const [realBookings, setRealBookings] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true)
   const [ticketModal, setTicketModal] = useState<{
     isOpen: boolean
-    tickets: Array<{index: number, tier: string}>
+    tickets: Array<{index: number, tier: string, qrCode?: string, qrImageUrl?: string}>
+    attendees: Array<{name: string, email: string, phone: string, dob: string, qrCode?: string, qrImageUrl?: string}>
     currentIndex: number
     bookingId: string
     eventTitle: string
   }>({
     isOpen: false,
     tickets: [],
+    attendees: [],
     currentIndex: 0,
     bookingId: "",
     eventTitle: ""
   })
   const { bookings } = useBookings()
+
+  // Fetch events from Supabase
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setIsLoading(true)
+      try {
+        const fetchedEvents = await getEvents()
+        setEvents(fetchedEvents)
+      } catch (error) {
+        console.error('Error fetching events:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchEvents()
+  }, [])
+
+  // Fetch real bookings from Supabase
+  useEffect(() => {
+    const fetchBookings = async () => {
+      setIsLoadingBookings(true)
+      try {
+        // Use the actual user ID that has bookings with proper QR codes
+        const mockUserId = '00000000-0000-0000-0000-000000000001'
+        const userBookings = await getUserBookings(mockUserId)
+        setRealBookings(userBookings)
+        console.log('📱 Loaded bookings with QR codes:', userBookings)
+      } catch (error) {
+        console.error('Error fetching bookings:', error)
+      } finally {
+        setIsLoadingBookings(false)
+      }
+    }
+
+    if (tab === 'my-bookings') {
+      fetchBookings()
+    }
+  }, [tab])
 
   // Check URL parameter for initial tab
   useEffect(() => {
@@ -47,40 +92,41 @@ export default function DashboardPage() {
 
   // Get unique categories from events
   const categories = useMemo(() => {
-    const allCategories = events.map(event => event.category)
+    const allCategories = events.map((event: Event) => event.category).filter(Boolean) as string[]
     const uniqueCategories = Array.from(new Set(allCategories)).sort()
     return ["All", ...uniqueCategories]
-  }, [])
+  }, [events])
 
   const filteredEvents = useMemo(() => {
-    return events.filter((e) => {
-      // Status filter
+    return events.filter((e: Event) => {
+      // Status filter - map old status to new schema
       const statusMatch = 
         filter === "ongoing" ? e.status === "ongoing" :
-        filter === "upcoming" ? e.status === "upcoming" :
-        e.status === "past"
+        filter === "upcoming" ? (e.status === "published" || e.status === "ongoing") :
+        e.status === "completed"
 
       // Category filter
       const categoryMatch = selectedCategory === "All" || e.category === selectedCategory
 
-      // Search filter
+      // Search filter with null checks
       const searchMatch = searchQuery === "" || 
         e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.category.toLowerCase().includes(searchQuery.toLowerCase())
+        (e.description && e.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (e.location && e.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (e.category && e.category.toLowerCase().includes(searchQuery.toLowerCase()))
 
       return statusMatch && categoryMatch && searchMatch
     })
-  }, [filter, selectedCategory, searchQuery])
+  }, [events, filter, selectedCategory, searchQuery])
 
-  const myBookings = bookings
+  const myBookings = realBookings.length > 0 ? realBookings : bookings
 
   // Ticket Modal handlers
   const openTicketModal = (booking: any, ticketIndex: number) => {
     setTicketModal({
       isOpen: true,
       tickets: booking.tickets,
+      attendees: booking.attendees,
       currentIndex: ticketIndex,
       bookingId: booking.bookingId,
       eventTitle: booking.event.title
@@ -148,8 +194,10 @@ export default function DashboardPage() {
         }
         isFirstPage = false
 
-        // Create QR code URL
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=TICKET-${booking.bookingId}-${ticket.index}&format=png`
+        // Create QR code - use the actual QR image from Supabase
+        const currentTicket = booking.tickets[i]
+        const qrImageUrl = currentTicket.qrImageUrl || booking.attendees[i]?.qrImageUrl || 
+          `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${currentTicket.qrCode || `TICKET-${booking.bookingId}-${currentTicket.index}`}&format=png`
         
         // Create canvas for this ticket
         const canvas = document.createElement('canvas')
@@ -194,7 +242,7 @@ export default function DashboardPage() {
             img.crossOrigin = 'anonymous'
             img.onload = () => resolve(img)
             img.onerror = () => reject(new Error('Failed to load QR code'))
-            img.src = qrCodeUrl
+            img.src = qrImageUrl
           })
 
           // White background for QR
@@ -270,8 +318,10 @@ export default function DashboardPage() {
         }
         isFirstPage = false
 
-        // Create QR code URL
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=TICKET-${ticketModal.bookingId}-${ticket.index}&format=png`
+        // Create QR code - use the actual QR image from Supabase
+        const currentTicket = ticketModal.tickets[i]
+        const qrImageUrl = currentTicket.qrImageUrl || ticketModal.attendees[i]?.qrImageUrl || 
+          `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${currentTicket.qrCode || `TICKET-${ticketModal.bookingId}-${currentTicket.index}`}&format=png`
         
         // Create canvas for this ticket
         const canvas = document.createElement('canvas')
@@ -316,7 +366,7 @@ export default function DashboardPage() {
             img.crossOrigin = 'anonymous'
             img.onload = () => resolve(img)
             img.onerror = () => reject(new Error('Failed to load QR code'))
-            img.src = qrCodeUrl
+            img.src = qrImageUrl
           })
 
           // White background for QR
@@ -377,8 +427,9 @@ export default function DashboardPage() {
       const currentTicket = ticketModal.tickets[ticketModal.currentIndex]
       if (!currentTicket) return
 
-      // Create a simple ticket with QR code
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=TICKET-${ticketModal.bookingId}-${currentTicket.index}&format=png`
+      // Use actual QR code from Supabase
+      const qrImageUrl = currentTicket.qrImageUrl || ticketModal.attendees[ticketModal.currentIndex]?.qrImageUrl || 
+        `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${currentTicket.qrCode || `TICKET-${ticketModal.bookingId}-${currentTicket.index}`}&format=png`
       
       // Create canvas for ticket
       const canvas = document.createElement('canvas')
@@ -446,7 +497,7 @@ export default function DashboardPage() {
       })
 
       // Set QR code source
-      qrImage.src = qrCodeUrl
+      qrImage.src = qrImageUrl
 
       // Wait for image to load
       await imageLoaded
@@ -496,8 +547,9 @@ export default function DashboardPage() {
       const ticket = booking.tickets[ticketIndex]
       if (!ticket) return
 
-      // Create QR code URL
-      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=TICKET-${booking.bookingId}-${ticket.index}&format=png`
+      // Use actual QR code from Supabase
+      const qrImageUrl = ticket.qrImageUrl || booking.attendees[ticketIndex]?.qrImageUrl || 
+        `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${ticket.qrCode || `TICKET-${booking.bookingId}-${ticket.index}`}&format=png`
       
       // Create canvas for ticket
       const canvas = document.createElement('canvas')
@@ -565,7 +617,7 @@ export default function DashboardPage() {
       })
 
       // Set QR code source
-      qrImage.src = qrCodeUrl
+      qrImage.src = qrImageUrl
 
       // Wait for image to load
       await imageLoaded
@@ -741,7 +793,7 @@ export default function DashboardPage() {
                   {categories.map((category) => (
                     <button
                       key={category}
-                      onClick={() => setSelectedCategory(category)}
+                      onClick={() => setSelectedCategory(category as string)}
                       className={cn(
                         "px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border",
                         selectedCategory === category
@@ -752,7 +804,7 @@ export default function DashboardPage() {
                       {category}
                       {category !== "All" && (
                         <span className="ml-2 text-xs opacity-70">
-                          {events.filter(e => e.category === category).length}
+                          {events.filter((e: Event) => e.category === category).length}
                         </span>
                       )}
                     </button>
@@ -779,7 +831,11 @@ export default function DashboardPage() {
                       >
                         {k}
                         <span className="ml-2 text-xs opacity-70">
-                          {events.filter(e => e.status === k).length}
+                          {events.filter((e: Event) => {
+                            if (k === "ongoing") return e.status === "ongoing"
+                            if (k === "upcoming") return e.status === "published" || e.status === "ongoing"
+                            return e.status === "completed"
+                          }).length}
                         </span>
                       </button>
                     ))}
@@ -805,7 +861,27 @@ export default function DashboardPage() {
             </div>
 
             {/* Events Grid */}
-            {filteredEvents.length > 0 ? (
+            {isLoading ? (
+              // Loading State
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="bg-white/5 rounded-2xl p-4 space-y-3">
+                      <div className="bg-white/10 h-48 rounded-lg"></div>
+                      <div className="space-y-2">
+                        <div className="bg-white/10 h-4 rounded w-3/4"></div>
+                        <div className="bg-white/10 h-3 rounded w-1/2"></div>
+                        <div className="bg-white/10 h-3 rounded w-2/3"></div>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="bg-white/10 h-8 rounded flex-1"></div>
+                        <div className="bg-white/10 h-8 rounded flex-1"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredEvents.length > 0 ? (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredEvents.map((e) => (
                   <EventCard key={e.id} event={e}>
@@ -822,7 +898,7 @@ export default function DashboardPage() {
                           View Details
                         </Link>
                       </Button>
-                      {e.status !== "past" && (
+                      {e.status !== "completed" && e.status !== "cancelled" && (
                         <Button 
                           asChild 
                           className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white shadow-lg hover:shadow-xl hover:shadow-cyan-500/25 transition-all duration-300 border-0"
@@ -835,7 +911,7 @@ export default function DashboardPage() {
                           </Link>
                         </Button>
                       )}
-                      {e.status === "past" && (
+                      {(e.status === "completed" || e.status === "cancelled") && (
                         <Button 
                           disabled
                           className="flex-1 bg-gradient-to-r from-gray-500/20 to-gray-600/20 text-gray-400 cursor-not-allowed"
@@ -843,7 +919,7 @@ export default function DashboardPage() {
                           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          Event Ended
+                          {e.status === "completed" ? "Event Ended" : "Event Cancelled"}
                         </Button>
                       )}
                     </div>
@@ -917,7 +993,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="p-4 rounded-xl bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 backdrop-blur">
                     <div className="text-2xl font-bold text-green-400">
-                      {myBookings.filter(b => b.event.status === "upcoming").length}
+                      {myBookings.filter(b => b.event.status === "published" || b.event.status === "ongoing").length}
                     </div>
                     <div className="text-xs text-slate-400">Upcoming</div>
                   </div>
@@ -982,7 +1058,7 @@ export default function DashboardPage() {
                           "absolute -top-2 -right-2 h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold",
                           b.event.status === "ongoing" 
                             ? "bg-green-500 text-white" 
-                            : b.event.status === "upcoming"
+                            : (b.event.status === "published")
                             ? "bg-blue-500 text-white"
                             : "bg-gray-500 text-gray-300"
                         )}>
@@ -1016,7 +1092,7 @@ export default function DashboardPage() {
                               "px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider",
                               b.event.status === "ongoing" 
                                 ? "bg-green-500/20 text-green-300 border border-green-500/30" 
-                                : b.event.status === "upcoming"
+                                : (b.event.status === "published")
                                 ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
                                 : "bg-gray-500/20 text-gray-300 border border-gray-500/30"
                             )}>
@@ -1054,7 +1130,7 @@ export default function DashboardPage() {
                                 className="relative group/qr block focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-neutral-900 rounded-xl"
                               >
                                 <img
-                                  src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=TICKET-${b.bookingId}-${t.index}`}
+                                  src={b.attendees[t.index]?.qrImageUrl || `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${b.attendees[t.index]?.qrCode || `TICKET-${b.bookingId}-${t.index}`}`}
                                   alt={`QR code for ticket ${t.index + 1}`}
                                   className="h-24 w-24 rounded-xl bg-white p-1 group-hover/ticket:scale-105 group-hover/qr:scale-110 transition-transform duration-300 cursor-pointer"
                                 />
@@ -1109,7 +1185,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                       
-                      {b.event.status === "past" && (
+                      {b.event.status === "completed" && (
                         <div className="flex items-center gap-2 text-sm text-amber-400">
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -1120,7 +1196,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Enhanced Feedback Section */}
-                    {b.event.status === "past" && (
+                    {b.event.status === "completed" && (
                       <div className="mt-4 pt-4 border-t border-white/10">
                         <EnhancedFeedbackControls bookingId={b.bookingId} eventTitle={b.event.title} />
                       </div>
@@ -1173,7 +1249,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-center">
                   <div className="relative">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=TICKET-${ticketModal.bookingId}-${ticketModal.currentIndex}`}
+                      src={ticketModal.tickets[ticketModal.currentIndex]?.qrImageUrl || ticketModal.attendees[ticketModal.currentIndex]?.qrImageUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${ticketModal.attendees[ticketModal.currentIndex]?.qrCode || `TICKET-${ticketModal.bookingId}-${ticketModal.currentIndex}`}`}
                       alt={`QR code for ticket ${ticketModal.currentIndex + 1}`}
                       className="w-80 h-80 rounded-2xl bg-white p-4 shadow-lg"
                     />
@@ -1236,11 +1312,26 @@ export default function DashboardPage() {
                 <button 
                   onClick={() => {
                     const currentTicket = ticketModal.tickets[ticketModal.currentIndex]
-                    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=TICKET-${ticketModal.bookingId}-${currentTicket.index}&download=1`
-                    const link = document.createElement('a')
-                    link.href = qrUrl
-                    link.download = `QR_Code_Ticket_${currentTicket.index + 1}.png`
-                    link.click()
+                    const currentAttendee = ticketModal.attendees[ticketModal.currentIndex]
+                    
+                    // Use actual QR image if available, otherwise generate with real QR code data
+                    const qrImageUrl = currentTicket?.qrImageUrl || currentAttendee?.qrImageUrl
+                    const qrData = currentAttendee?.qrCode || `TICKET-${ticketModal.bookingId}-${currentTicket.index}`
+                    
+                    if (qrImageUrl) {
+                      // Download the actual QR image from database
+                      const link = document.createElement('a')
+                      link.href = qrImageUrl
+                      link.download = `QR_Code_Ticket_${currentTicket.index + 1}.png`
+                      link.click()
+                    } else {
+                      // Generate QR with actual data
+                      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${qrData}&download=1`
+                      const link = document.createElement('a')
+                      link.href = qrUrl
+                      link.download = `QR_Code_Ticket_${currentTicket.index + 1}.png`
+                      link.click()
+                    }
                   }}
                   className="px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 hover:border-white/20 transition-all duration-200"
                   title="Download QR Code Only"
