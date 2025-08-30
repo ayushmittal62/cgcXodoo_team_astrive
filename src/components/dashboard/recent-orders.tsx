@@ -38,20 +38,12 @@ export function RecentOrders({ organizer }: RecentOrdersProps) {
     const fetchBookings = async () => {
       try {
         const { data: bookingsData, error } = await getOrganizerBookings(organizer.id)
-        
-        if (error) {
-          console.error('Error fetching bookings:', error)
-          setBookings([])
-        } else {
-          // Transform bookings data for display
-          const transformedBookings = (bookingsData || []).map(booking => ({
-            ...booking,
-            event_title: booking?.event_title || 'Unknown Event',
-            amountINR: formatCurrencyINR(booking?.total_amount || 0),
-            createdAtFmt: formatDateTimeISO(booking?.created_at || '')
-          }))
-          setBookings(transformedBookings.slice(0, 10)) // Show latest 10 bookings
-        }
+          if (error) {
+            toast("Error loading bookings", { description: error.message || String(error) });
+            setBookings([]);
+          } else {
+            setBookings(bookingsData || []);
+          }
       } catch (err) {
         console.error('Error in fetchBookings:', err)
         setBookings([])

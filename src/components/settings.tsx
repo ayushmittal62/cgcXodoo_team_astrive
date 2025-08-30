@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 export function SettingsSection({
   event,
@@ -15,14 +15,16 @@ export function SettingsSection({
   event: EventItem
   onChange: (patch: Partial<EventItem>) => void
 }) {
+  const { toast } = useToast()
   const [title, setTitle] = useState(event.title)
   const [location, setLocation] = useState(event.location)
   const [visibility, setVisibility] = useState<EventItem["visibility"]>(event.visibility)
 
   function save() {
     onChange({ title, location, visibility })
-    toast("Event settings updated")
+    toast({ title: "Settings saved", description: "Event settings updated" })
   }
+
   return (
     <Card className="rounded-2xl bg-card/90 border-border/60">
       <CardHeader className="flex-row items-center justify-between">

@@ -22,17 +22,12 @@ export function SignUp({ className, onGoogleSignUp }: SignUpProps) {
       return;
     }
 
-    console.log("Starting Google sign-up process");
     setIsLoading(true);
     try {
       const user = await signUpWithGoogle();
-      console.log("Sign-up successful:", user);
       if (user) {
-        console.log("Redirecting to /organizer/dashboard");
-        // Redirect to organizer dashboard on successful sign-up
-        router.push("/organizer/dashboard");
-      } else {
-        console.log("No user returned from sign-up");
+        // Redirect to attendee page on successful sign-up
+        router.push("/attendee");
       }
     } catch (error) {
       console.error("Sign-up error:", error);

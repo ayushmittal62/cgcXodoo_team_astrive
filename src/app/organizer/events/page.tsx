@@ -1,20 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
-import { useAuth } from "@/contexts/AuthContext"
-import { useOrganizerData } from "@/hooks/useOrganizerData"
-import { useKycCheckForPublishing } from "@/hooks/use-kyc-guard"
-import { KycStatusBanner } from "@/components/kyc-status-banner"
-import type { Event } from "@/lib/supabase"
+import { useToast } from "@/hooks/use-toast"
+import { mockEvents as seedEvents } from "@/lib/mock-data"
 import type { EventItem } from "@/lib/organizer"
 import { PlusCircle } from "lucide-react"
 import { EventGrid } from "@/components/event-grid"
@@ -22,96 +16,41 @@ import { EventGrid } from "@/components/event-grid"
 type StatusFilter = "all" | "draft" | "published" | "completed" | "cancelled"
 type DateFilter = "all" | "today" | "7d" | "30d"
 
-// Adapter function to convert Event to EventItem
-function eventToEventItem(event: Event): EventItem {
-  const startAt = `${event.event_date}T${event.event_time}`
-  const endTime = new Date(startAt).getTime() + (4 * 60 * 60 * 1000) // Assume 4 hour duration
-  const endAt = new Date(endTime).toISOString()
-  
-  return {
-    id: event.id,
-    title: event.title,
-    category: event.category || "Other",
-    startAt,
-    endAt,
-    location: event.location || "",
-    visibility: event.event_type === "public" ? "public" : "private",
-    posterUrl: event.cover_poster_url,
-    logoUrl: event.logo_url,
-    tickets: [], // TODO: populate with actual ticket data
-    status: event.status as EventItem["status"],
-    revenue: 0, // TODO: calculate from bookings
-    ticketsLeft: event.total_tickets,
-    sold: 0 // TODO: calculate from bookings
-  }
-}
-
-function isOngoing(e: Event, now: number) {
-  const start = new Date(e.event_date + ' ' + e.event_time).getTime()
-  const end = new Date(e.event_date + ' ' + e.event_time).getTime() + (4 * 60 * 60 * 1000) // Assume 4 hour duration
+function isOngoing(e: EventItem, now: number) {
+  const start = new Date(e.startAt).getTime()
+  const end = new Date(e.endAt).getTime()
   return e.status === "published" && start <= now && now <= end
 }
-
-function isUpcoming(e: Event, now: number) {
-  const start = new Date(e.event_date + ' ' + e.event_time).getTime()
+function isUpcoming(e: EventItem, now: number) {
+  const start = new Date(e.startAt).getTime()
   return start > now && (e.status === "published" || e.status === "draft")
 }
-
-function isCompleted(e: Event, now: number) {
-  const start = new Date(e.event_date + ' ' + e.event_time).getTime()
-  const end = start + (4 * 60 * 60 * 1000) // Assume 4 hour duration
+function isCompleted(e: EventItem, now: number) {
+  const end = new Date(e.endAt).getTime()
   return e.status === "completed" || end < now
 }
 
 export default function EventsListPage() {
-  const router = useRouter()
-  const { user, userProfile, loading: authLoading } = useAuth()
-  const { organizer, getEvents, loading: organizerLoading } = useOrganizerData()
-  const { checkKycBeforePublish } = useKycCheckForPublishing()
-  
-  const [events, setEvents] = useState<Event[]>([])
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [events, setEvents] = useState<EventItem[]>([])
   const [q, setQ] = useState("")
   const [category, setCategory] = useState<string>("all")
   const [status, setStatus] = useState<StatusFilter>("all")
   const [dateFilter, setDateFilter] = useState<DateFilter>("all")
-  const [tab, setTab] = useState<"ongoing" | "upcoming" | "completed">("upcoming")
+  const [tab, setTab] = useState<"ongoing" | "upcoming" | "completed">("ongoing")
 
-  const totalLoading = authLoading || organizerLoading
-
-  // Redirect if not authenticated
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/sign-in')
-    }
-  }, [authLoading, user, router])
-
-  // Fetch events when organizer is available
-  useEffect(() => {
-    if (organizer) {
-      fetchEvents()
-    } else if (!organizerLoading && !organizer) {
-      setEvents([])
+    // simulate fetch
+    const t = setTimeout(() => {
+      setEvents(seedEvents)
       setLoading(false)
-    }
-  }, [organizer, organizerLoading])
-
-  const fetchEvents = async () => {
-    try {
-      setLoading(true)
-      const eventsData = await getEvents()
-      setEvents(eventsData)
-    } catch (error) {
-      console.error('Error fetching events:', error)
-      toast.error('Failed to load events')
-      setEvents([])
-    } finally {
-      setLoading(false)
-    }
-  }
+    }, 500)
+    return () => clearTimeout(t)
+  }, [])
 
   const categories = useMemo(() => {
-    const s = new Set(events.map((e) => e.category).filter((c): c is string => Boolean(c)))
+    const s = new Set(events.map((e) => e.category))
     return ["all", ...Array.from(s)]
   }, [events])
 
@@ -130,8 +69,8 @@ export default function EventsListPage() {
       list = list.filter(
         (e) =>
           e.title.toLowerCase().includes(qq) ||
-          (e.location && e.location.toLowerCase().includes(qq)) ||
-          (e.category && e.category.toLowerCase().includes(qq)),
+          e.location.toLowerCase().includes(qq) ||
+          e.category.toLowerCase().includes(qq),
       )
     }
     if (category !== "all") {
@@ -153,7 +92,7 @@ export default function EventsListPage() {
       const sTime = start.getTime()
       const eTime = end.getTime()
       list = list.filter((e) => {
-        const st = new Date(e.event_date + ' ' + e.event_time).getTime()
+        const st = new Date(e.startAt).getTime()
         return st >= sTime && st <= eTime
       })
     }
@@ -161,36 +100,21 @@ export default function EventsListPage() {
   }, [tabbed, q, category, status, dateFilter])
 
   function bulkPublish(ids: string[]) {
-    checkKycBeforePublish(
-      () => {
-        // KYC verified - proceed with publishing
-        setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "published" } as Event) : e)))
-        toast.success(`${ids.length} event(s) published`)
-      },
-      () => {
-        // KYC not verified - redirect to KYC
-        toast.error("KYC verification required to publish events")
-        router.push('/organizer/kyc')
-      }
-    )
+    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "published" } as EventItem) : e)))
+    toast({ title: "Event published", description: `${ids.length} event(s) published` })
   }
-
   function bulkUnpublish(ids: string[]) {
-    // Allow unpublishing without KYC check
-    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "draft" } as Event) : e)))
-    toast.success(`${ids.length} event(s) set to Draft`)
+    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "draft" } as EventItem) : e)))
+    toast({ title: "Event unpublished", description: `${ids.length} event(s) set to Draft` })
   }
-
   function bulkCancel(ids: string[]) {
-    // Allow cancelling without KYC check
-    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "cancelled" } as Event) : e)))
-    toast.success(`${ids.length} event(s) cancelled`)
+    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "cancelled" } as EventItem) : e)))
+    toast({ title: "Event cancelled", description: `${ids.length} event(s) cancelled` })
   }
-
   function bulkExport(ids: string[]) {
     // TODO: integrate real export
     console.log("[export] events:", ids)
-    toast.success(`Preparing export for ${ids.length} event(s)`)
+    toast({ title: "Export started", description: `Preparing export for ${ids.length} event(s)` })
   }
 
   return (
@@ -205,8 +129,6 @@ export default function EventsListPage() {
             </Link>
           </Button>
         </div>
-
-        <KycStatusBanner />
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
           <TabsList className="rounded-xl">
@@ -272,7 +194,7 @@ export default function EventsListPage() {
               <EmptyState />
             ) : (
               <EventGrid
-                items={filtered.map(eventToEventItem)}
+                items={filtered}
                 onPublish={bulkPublish}
                 onUnpublish={bulkUnpublish}
                 onCancel={bulkCancel}
@@ -287,7 +209,7 @@ export default function EventsListPage() {
               <EmptyState />
             ) : (
               <EventGrid
-                items={filtered.map(eventToEventItem)}
+                items={filtered}
                 onPublish={bulkPublish}
                 onUnpublish={bulkUnpublish}
                 onCancel={bulkCancel}
@@ -302,7 +224,7 @@ export default function EventsListPage() {
               <EmptyState />
             ) : (
               <EventGrid
-                items={filtered.map(eventToEventItem)}
+                items={filtered}
                 onPublish={bulkPublish}
                 onUnpublish={bulkUnpublish}
                 onCancel={bulkCancel}

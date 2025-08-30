@@ -2,7 +2,10 @@
 
 import { signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { auth, provider } from "./firebaseConfig";
-import { createUserProfile } from "./supabase";
+import { createClient} from "./supabase";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // Sign in with Google
 export const signInWithGoogle = async (): Promise<User | null> => {
@@ -23,7 +26,9 @@ export const signUpWithGoogle = async (): Promise<User | null> => {
     
     if (user) {
       // Save user data to Supabase using your existing users table
-      const { data, error } = await createUserProfile({
+      // Import your Supabase URL and anon key from environment or config
+      
+      const { data, error } = await createClient(supabaseUrl, supabaseAnonKey).from('users').insert({
         firebaseUid: user.uid, // We still pass this but don't store it in the table
         email: user.email || '',
         displayName: user.displayName || undefined,

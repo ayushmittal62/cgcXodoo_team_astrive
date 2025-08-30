@@ -22,17 +22,12 @@ export function SignIn({ className, onGoogleSignIn }: SignInProps) {
       return;
     }
 
-    console.log("Starting Google sign-in process");
     setIsLoading(true);
     try {
       const user = await signInWithGoogle();
-      console.log("Sign-in successful:", user);
       if (user) {
-        console.log("Redirecting to /organizer/dashboard");
-        // Redirect to organizer dashboard on successful sign-in
-        router.push("/organizer/dashboard");
-      } else {
-        console.log("No user returned from sign-in");
+        // Redirect to attendee page on successful sign-in
+        router.push("/attendee");
       }
     } catch (error) {
       console.error("Sign-in error:", error);

@@ -8,20 +8,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, ArrowDown, ArrowUp, Trash } from "lucide-react"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import { formatCurrencyINR } from "@/lib/formatters"
 
 export function TicketsSection({
   event,
   onChange,
 }: { event: EventItem; onChange: (patch: Partial<EventItem>) => void }) {
+  const { toast } = useToast()
   const [tiers, setTiers] = useState<TicketTier[]>(event.tickets)
 
   function persist(next: TicketTier[]) {
     setTiers(next)
     onChange({ tickets: next })
-    toast("Inventory updated", { description: "Ticket tiers updated" })
+    toast({ title: "Inventory updated", description: "Ticket tiers updated" })
   }
+
   function addTier() {
     const id = Math.random().toString(36).slice(2, 8)
     persist([...tiers, { id, name: "New Tier", price: 999, quantity: 50, perUserLimit: 4, sold: 0 }])

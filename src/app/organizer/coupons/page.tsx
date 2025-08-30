@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { mockEvents } from "@/lib/mock-data"
 import type { Coupon } from "@/lib/organizer"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 function seed(eventId: string): Coupon[] {
   return [
@@ -27,13 +27,14 @@ function seed(eventId: string): Coupon[] {
 }
 
 export default function OrganizerCouponsPage() {
+  const { toast } = useToast()
   const initial = useMemo(() => mockEvents.flatMap((e) => seed(e.id)), [])
   const [rows, setRows] = useState<(Coupon & { eventTitle: string; window: string })[]>(
     initial.map((c) => {
       const ev = mockEvents.find((e) => e.id === c.eventId)
       return {
         ...c,
-        eventTitle: ev?.title ?? c.eventId ?? "Unknown Event",
+        eventTitle: ev?.title || c.eventId,
         window: `${new Date(c.startsAt).toLocaleDateString()} → ${new Date(c.endsAt).toLocaleDateString()}`,
       }
     }),
@@ -41,12 +42,13 @@ export default function OrganizerCouponsPage() {
 
   function onExportCsv(selected: any[]) {
     console.log("[export] CSV coupons", selected.length)
-    toast("Export started", { description: "Preparing coupons CSV..." })
+    toast({ title: "Export started", description: "Preparing coupons CSV..." })
   }
   function onExportXlsx(selected: any[]) {
     console.log("[export] Excel coupons", selected.length)
-    toast("Export started", { description: "Preparing coupons Excel..." })
+    toast({ title: "Export started", description: "Preparing coupons Excel..." })
   }
+
   function toggleActive(id: string) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r)))
   }
@@ -56,7 +58,8 @@ export default function OrganizerCouponsPage() {
       <div className="max-w-[1200px] mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Coupons</h1>
-          <Button className="rounded-xl" onClick={() => toast("Create coupon", { description: "Stub action" })}>
+          <Button className="rounded-xl" onClick={() => toast({ title: "Create coupon", description: "Stub action" })}>
+            Create Coupon
           </Button>
         </div>
 

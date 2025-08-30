@@ -40,7 +40,7 @@ export default function EventDetailPage() {
   const bookingRows = mockBookings.filter((b) => b.eventId === event.id)
 
   function updateEvent(partial: Partial<EventItem>) {
-    if (!event) return
+    if (!event) return;
     setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...partial } : e)))
   }
 

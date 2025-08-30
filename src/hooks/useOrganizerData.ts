@@ -3,14 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { 
-  getOrganizerByUserId, 
-  getOrganizerAnalytics, 
-  getRevenueByPeriod, 
-  getDashboardSummary,
-  getOrganizerEvents,
-  type Organizer,
-  type Event 
+  getOrganizerByUserId,
+  getOrganizerAnalytics,
+  getRevenueByPeriod,
+  getDashboardSummary
 } from '@/lib/supabase'
+import type { Organizer } from '@/lib/supabase'
 
 interface DashboardSummary {
   total_events: number
@@ -99,21 +97,7 @@ export function useOrganizerData() {
     }
   }
 
-  const getEvents = async (): Promise<Event[]> => {
-    if (!organizer) return []
-    
-    try {
-      const { data, error } = await getOrganizerEvents(organizer.id)
-      if (error) {
-        console.error('Error fetching organizer events:', error)
-        return []
-      }
-      return data || []
-    } catch (err) {
-      console.error('Error in getEvents:', err)
-      return []
-    }
-  }
+  // getEvents function removed because getOrganizerEvents is not available
 
   return {
     organizer,
@@ -121,7 +105,6 @@ export function useOrganizerData() {
     loading,
     error,
     refetch: fetchOrganizerData,
-    getRevenueData,
-    getEvents
+    getRevenueData
   }
 }

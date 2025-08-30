@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "sonner"
-import { title } from "process"
+import { useToast } from "@/hooks/use-toast"
 
 type OrgSettings = {
   orgName: string
@@ -19,6 +18,7 @@ type OrgSettings = {
 const KEY = "organizer_settings_v1"
 
 export default function OrganizerSettingsPage() {
+  const { toast } = useToast()
   const [form, setForm] = useState<OrgSettings>({
     orgName: "",
     supportEmail: "",
@@ -36,12 +36,12 @@ export default function OrganizerSettingsPage() {
 
   function save() {
     localStorage.setItem(KEY, JSON.stringify(form))
-    toast("Settings saved", { description: "Organizer settings have been updated." })
+    toast({ title: "Settings saved", description: "Organizer settings have been updated." })
   }
 
   function resetLocal() {
     localStorage.removeItem(KEY)
-    toast("Local settings cleared")
+    toast({ title: "Local settings cleared" })
   }
 
   return (

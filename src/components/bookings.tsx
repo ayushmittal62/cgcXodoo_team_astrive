@@ -1,22 +1,24 @@
 "use client"
 
+import type { Booking, EventItem } from "@/lib/organizer"
 import { DataTable } from "@/components/data-table"
 import { formatCurrencyINR, formatDateTimeISO } from "@/lib/formatters"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function BookingsSection({ event, rows }: { event: any; rows: any[] }) {
+export function BookingsSection({ event, rows }: { event: EventItem; rows: Booking[] }) {
+  const { toast } = useToast()
 
   function onExportCsv(selected: any[]) {
     console.log("[export] CSV bookings", selected.length)
-    toast("Export started", { description: "Preparing bookings CSV..." })
+    toast({ title: "Export started", description: "Preparing bookings CSV..." })
   }
   function onExportXlsx(selected: any[]) {
     console.log("[export] Excel bookings", selected.length)
-    toast("Export started", { description: "Preparing bookings Excel..." })
+    toast({ title: "Export started", description: "Preparing bookings Excel..." })
   }
 
   return (

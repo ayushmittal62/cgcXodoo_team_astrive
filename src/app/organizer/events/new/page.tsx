@@ -1,5 +1,7 @@
 "use client"
 
+// Create Event Wizard with 4 steps, zod validation, and localStorage draft autosave
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { z } from "zod"
@@ -10,12 +12,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, ArrowDown, ArrowUp, Trash, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
-import { useAuth } from "@/contexts/AuthContext"
-import { useOrganizerData } from "@/hooks/useOrganizerData"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Plus, ArrowDown, ArrowUp, Trash } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
+// Schema
 const ticketSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "Name is required"),
@@ -66,28 +66,13 @@ const initialState: FormState = {
 
 export default function CreateEventWizardPage() {
   const router = useRouter()
-  const { user, userProfile, loading: authLoading } = useAuth()
-  const { organizer, loading: organizerLoading } = useOrganizerData()
-  
+  const { toast } = useToast()
   const [step, setStep] = useState<StepKey>("basic")
   const [form, setForm] = useState<FormState>(initialState)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Check if user is KYC verified
-  const isKycVerified = Boolean(organizer?.kyc_verified)
-  const canPublish = isKycVerified
-  // Only show loading for auth, not for organizer data
-  const loading = authLoading
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/sign-in')
-    }
-  }, [authLoading, user, router])
 
   // Load draft if any
   const draft = useMemo(() => {
@@ -118,13 +103,13 @@ export default function CreateEventWizardPage() {
     if (draft?.data) {
       setForm(draft.data)
       setLastSaved(draft.savedAt)
-      toast("Draft restored", { description: "A saved draft has been loaded." })
+      toast({ title: "Draft restored", description: "A saved draft has been loaded." })
     }
   }
 
   function discardDraft() {
     localStorage.removeItem(DRAFT_KEY)
-    toast("Draft discarded")
+    toast({ title: "Draft discarded" })
   }
 
   function updateBasic<K extends keyof FormState["basic"]>(key: K, value: FormState["basic"][K]) {
@@ -191,7 +176,7 @@ export default function CreateEventWizardPage() {
     }
     setErrors(e)
     if (Object.keys(e).length > 0) {
-      toast("Please fix the highlighted fields", { description: "Validation errors found." })
+      toast({ title: "Please fix the highlighted fields", description: "Validation errors found." })
       return false
     }
     if (next) setStep(next)
@@ -199,15 +184,6 @@ export default function CreateEventWizardPage() {
   }
 
   function publish() {
-    // Check KYC status first
-    if (!canPublish) {
-      toast.error("KYC verification required", { 
-        description: "Complete your KYC verification to publish events." 
-      })
-      router.push('/organizer/kyc')
-      return
-    }
-
     // Validate all
     const r = formSchema.safeParse(form)
     if (!r.success) {
@@ -217,33 +193,12 @@ export default function CreateEventWizardPage() {
         e[k] = err.message
       })
       setErrors(e)
-      toast("Missing information", { description: "Please resolve validation errors before publishing." })
+      toast({ title: "Missing information", description: "Please resolve validation errors before publishing." })
       return
     }
-    // Simulate submit as published
+    // Simulate submit
     discardDraft()
-    toast.success("Event published", { description: `${form.basic.title} has been published and is now live.` })
-    router.push("/organizer/events")
-  }
-
-  function saveAsDraft() {
-    // Validate all
-    const r = formSchema.safeParse(form)
-    if (!r.success) {
-      const e: Record<string, string> = {}
-      r.error.issues.forEach((err) => {
-        const k = (err.path as string[]).join(".")
-        e[k] = err.message
-      })
-      setErrors(e)
-      toast("Missing information", { description: "Please fill in all required fields to save as draft." })
-      return
-    }
-    // Simulate save as draft
-    discardDraft()
-    toast.success("Event saved as draft", { 
-      description: `${form.basic.title} has been saved. Complete KYC verification to publish.` 
-    })
+    toast({ title: "Event created", description: `${form.basic.title} has been created.` })
     router.push("/organizer/events")
   }
 
@@ -254,27 +209,12 @@ export default function CreateEventWizardPage() {
     { key: "review", label: "Review & Publish" },
   ]
 
-  // Show loading state only while checking auth
-  if (loading) {
-    return (
-      <main className="p-4 md:p-6">
-        <div className="max-w-[900px] mx-auto">
-          <div className="text-center py-12">
-            <h1 className="text-xl font-semibold mb-2">Loading...</h1>
-            <p className="text-muted-foreground">Checking authentication status</p>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
   return (
     <main className="p-4 md:p-6">
       <div className="max-w-[900px] mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-balance">Create Event</h1>
           <div className="flex items-center gap-2">
-            {organizerLoading && <Badge variant="secondary">Loading profile...</Badge>}
             {saving && <Badge variant="secondary">Saving…</Badge>}
             {!!lastSaved && (
               <span className="text-xs text-muted-foreground">Saved {new Date(lastSaved).toLocaleTimeString()}</span>
@@ -630,37 +570,6 @@ export default function CreateEventWizardPage() {
               <CardTitle>Review & Publish</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* KYC Status Warning */}
-              {organizerLoading ? (
-                <Alert className="border-blue-200 bg-blue-50">
-                  <AlertTriangle className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <strong>Loading your organizer profile...</strong> We're checking your verification status.
-                  </AlertDescription>
-                </Alert>
-              ) : !canPublish ? (
-                <Alert className="border-amber-200 bg-amber-50">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-800">
-                    <strong>KYC Verification Required:</strong> You can save this event as a draft, but you need to complete your KYC verification before you can publish it live.{" "}
-                    <Button 
-                      variant="link" 
-                      className="p-0 h-auto text-amber-800 underline" 
-                      onClick={() => router.push("/organizer/kyc")}
-                    >
-                      Complete KYC now
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <Alert className="border-green-200 bg-green-50">
-                  <AlertTriangle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    <strong>Ready to publish:</strong> Your account is verified and you can publish this event immediately.
-                  </AlertDescription>
-                </Alert>
-              )}
-
               <div>
                 <h3 className="font-medium">Basic</h3>
                 <p className="text-sm text-muted-foreground">{form.basic.title || "—"}</p>
@@ -691,19 +600,9 @@ export default function CreateEventWizardPage() {
                 <Button variant="outline" className="rounded-xl bg-transparent" onClick={() => setStep("schedule")}>
                   Back
                 </Button>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="rounded-xl" onClick={saveAsDraft}>
-                    Save as Draft
-                  </Button>
-                  <Button 
-                    className="rounded-xl" 
-                    onClick={publish}
-                    disabled={!canPublish}
-                    title={!canPublish ? "Complete KYC verification to publish" : ""}
-                  >
-                    {canPublish ? "Publish" : "Publish (KYC Required)"}
-                  </Button>
-                </div>
+                <Button className="rounded-xl" onClick={publish}>
+                  Publish
+                </Button>
               </div>
             </CardContent>
           </Card>

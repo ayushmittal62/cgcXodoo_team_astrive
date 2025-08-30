@@ -15,14 +15,16 @@ import { Eye, MoreVertical, Unplug, PlugZap } from "lucide-react"
 import type { EventItem } from "@/lib/organizer"
 import Link from "next/link"
 import { ConfirmDialog } from "@/components/confirm-dialog"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 
 export function EventHeader({ event, onChange }: { event: EventItem; onChange: (patch: Partial<EventItem>) => void }) {
+  const { toast } = useToast()
   const isPublished = event.status === "published"
 
   function togglePublish() {
     onChange({ status: isPublished ? "draft" : "published" })
-    toast(isPublished ? "Event unpublished" : "Event published", {
+    toast({
+      title: isPublished ? "Event unpublished" : "Event published",
       description: `${event.title} is now ${isPublished ? "Draft" : "Published"}`,
     })
   }
