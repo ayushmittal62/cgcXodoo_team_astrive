@@ -1,5 +1,4 @@
 "use client"
-
 import Link from "next/link"
 import { useMemo, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
@@ -554,11 +553,11 @@ export default function DashboardPage() {
       // Create canvas for ticket
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
+      
       if (!ctx) {
         console.error('Canvas context not available')
         return
       }
-
       // Set canvas dimensions
       canvas.width = 600
       canvas.height = 800
@@ -593,7 +592,7 @@ export default function DashboardPage() {
       // QR Code section
       const qrImage = new Image()
       qrImage.crossOrigin = 'anonymous'
-      
+    
       // Use Promise to handle image loading
       const imageLoaded = new Promise<void>((resolve, reject) => {
         qrImage.onload = () => {
@@ -615,25 +614,21 @@ export default function DashboardPage() {
         }
         qrImage.onerror = () => reject(new Error('Failed to load QR code'))
       })
-
       // Set QR code source
       qrImage.src = qrImageUrl
 
       // Wait for image to load
       await imageLoaded
-
       // Add text below QR
       ctx.fillStyle = '#ffffff'
       ctx.font = '18px Arial, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText('EventHive Digital Ticket', canvas.width / 2, 550)
-      
       ctx.font = '14px Arial, sans-serif'
       ctx.fillStyle = '#a0a0a0'
       ctx.fillText('Present this QR code at the venue entrance', canvas.width / 2, 580)
       ctx.fillText(`Event: ${booking.event.date} • ${booking.event.time}`, canvas.width / 2, 610)
       ctx.fillText(`Location: ${booking.event.location}`, canvas.width / 2, 630)
-
       // Border
       ctx.strokeStyle = '#06b6d4'
       ctx.lineWidth = 3
@@ -645,7 +640,6 @@ export default function DashboardPage() {
           console.error('Failed to create blob')
           return
         }
-        
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
@@ -655,14 +649,47 @@ export default function DashboardPage() {
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
       }, 'image/png', 1.0)
-
     } catch (error) {
       console.error('Error downloading ticket:', error)
       alert('Failed to download ticket. Please try again.')
+
     }
   }
 
+  // Show loading while auth is being checked
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show sign-in prompt if no user after loading is complete
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <p className="text-white/70 mb-6">
+            You need to sign in to access the attendee dashboard.
+          </p>
+          <button
+            onClick={() => window.location.href = '/sign-in'}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-full transition-colors font-medium"
+          >
+            Go to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
+
     <main className="min-h-dvh bg-neutral-950 text-slate-200">
       <header className="sticky top-0 z-20 border-b border-white/10 bg-neutral-950/70 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
@@ -710,9 +737,11 @@ export default function DashboardPage() {
                 My Bookings
               </button>
             </nav>
+
           </div>
         </div>
       </header>
+
 
       {/* Success Message Banner */}
       {showSuccessMessage && (
@@ -742,6 +771,7 @@ export default function DashboardPage() {
                 </svg>
               </button>
             </div>
+
           </div>
         </div>
       )}
@@ -1428,6 +1458,7 @@ function EnhancedFeedbackControls({ bookingId, eventTitle }: { bookingId: string
            feedback.rating === 4 ? "Very Good" : "Excellent"}
         </span>
       </div>
+
 
       {/* Expanded Feedback Form */}
       {isExpanded && (

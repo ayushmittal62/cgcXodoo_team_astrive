@@ -26,7 +26,7 @@ export function SignIn({ className, onGoogleSignIn }: SignInProps) {
     try {
       const user = await signInWithGoogle();
       if (user) {
-        // Redirect to attendee page on successful sign-in
+        // Redirect to organizer dashboard on successful sign-in
         router.push("/attendee");
       }
     } catch (error) {

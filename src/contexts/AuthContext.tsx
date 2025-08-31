@@ -2,8 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "firebase/auth";
-import { onAuthStateChange } from "@/lib/auth";
-import { getUserProfileByEmail, UserProfile } from "@/lib/supabase";
+import { onAuthStateChange, getCurrentUser } from "@/lib/auth";
+import { getUserProfileByEmail, createUserProfile, type UserProfile } from "@/lib/supabase";
 
 interface AuthContextType {
   user: User | null;
@@ -35,21 +35,79 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+
+    let mounted = true;
+    
     const unsubscribe = onAuthStateChange(async (user) => {
+      if (!mounted) return;
+      
+      console.log("Auth state changed:", user ? `User signed in: ${user.email}` : "User signed out");
       setUser(user);
       
-      if (user && user.email) {
-        // Fetch user profile from Supabase using email
-        const { data } = await getUserProfileByEmail(user.email);
-        setUserProfile(data);
+  if (user && user.email) {
+        const email = user.email.toLowerCase();
+        // Fetch Supabase user profile by email
+        try {
+          console.log("Fetching user profile for:", email);
+          let { data: profile, error } = await getUserProfileByEmail(email);
+          
+          if (error || !profile) {
+            console.log("User profile not found, creating new profile...");
+            // User doesn't exist, create a new profile
+            const { data: newProfile, error: createError } = await createUserProfile({
+              email,
+              displayName: user.displayName || undefined,
+              photoUrl: user.photoURL || undefined
+            });
+            
+            if (createError) {
+              console.error("Error creating user profile:", createError);
+              setUserProfile(null);
+            } else {
+              console.log("New user profile created:", newProfile);
+              setUserProfile(newProfile);
+            }
+          } else {
+            console.log("User profile found:", profile);
+            setUserProfile(profile);
+          }
+        } catch (err) {
+          console.error("Error in user profile fetch/create:", err);
+          setUserProfile(null);
+        }
       } else {
+        console.warn('No Firebase user or user.email is null — cannot fetch/create profile');
         setUserProfile(null);
       }
       
-      setLoading(false);
+      if (mounted) {
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    // Fallback timeout to prevent infinite loading and to verify email once
+    const timeout = setTimeout(() => {
+      if (!mounted) return;
+      try {
+        const current = getCurrentUser();
+        if (current) {
+          console.warn("Auth init fallback: using currentUser", { email: current.email });
+          setUser(current);
+        } else {
+          console.warn("Auth init fallback: no currentUser");
+        }
+      } catch (e) {
+        console.error("Auth init fallback error", e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }, 2000);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   return (
