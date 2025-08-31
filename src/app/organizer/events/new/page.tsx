@@ -222,9 +222,9 @@ export default function CreateEventWizardPage() {
         toast({ title: 'Failed to create event', description: String((error as any).message || error) })
         return
       }
-      discardDraft()
-      toast({ title: 'Event created', description: `${form.basic.title} has been created.` })
-      router.push('/organizer/events')
+  discardDraft()
+  toast({ title: 'Event created', description: `${form.basic.title} has been created.` })
+  router.push('/organizer/events?tab=upcoming&refresh=' + Date.now())
     } catch (e: any) {
       console.error('[create-event] unexpected', e)
       toast({ title: 'Error', description: String(e?.message || e) })

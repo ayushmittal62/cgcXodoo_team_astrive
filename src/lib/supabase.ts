@@ -432,6 +432,83 @@ export async function getOrganizerEventsOverview(organizerId: string) {
   return { data: mapped, error: null }
 }
 
+// NEW: Fetch events by multiple possible organizer identifiers (e.g., organizer.id and organizer.user_id/email)
+export async function getOrganizerEventsOverviewByOwnerIds(organizerIds: string[]) {
+  const raw = Array.from(new Set((organizerIds || []).filter(Boolean)))
+  if (raw.length === 0) return { data: [], error: null as any }
+
+  const idCandidates = raw.filter(x => !x.includes('@'))
+  const emailCandidates = raw.filter(x => x.includes('@')).map(x => x.toLowerCase())
+
+  let events: any[] = []
+
+  if (idCandidates.length > 0) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, category, event_type, location, cover_poster_url, logo_url, sales_start, sales_end, event_date, event_time, total_tickets, status, organizer_id')
+      .in('organizer_id', idCandidates)
+      .order('created_at', { ascending: false })
+    if (error) return { data: null, error }
+    events = events.concat(data || [])
+  }
+
+  // Case-insensitive email matches, one-by-one using ilike
+  for (const email of emailCandidates) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, category, event_type, location, cover_poster_url, logo_url, sales_start, sales_end, event_date, event_time, total_tickets, status, organizer_id')
+      .ilike('organizer_id', email)
+      .order('created_at', { ascending: false })
+    if (error) return { data: null, error }
+    events = events.concat(data || [])
+  }
+
+  // Dedupe by id
+  const seen = new Set<string>()
+  events = events.filter((e: any) => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+
+  const eventIds = (events ?? []).map(e => e.id)
+  if (eventIds.length === 0) return { data: [], error: null }
+
+  // Fetch tickets to compute total inventory
+  const { data: tickets, error: ticketsError } = await supabase
+    .from('tickets')
+    .select('event_id, quantity')
+    .in('event_id', eventIds)
+
+  if (ticketsError) return { data: null, error: ticketsError }
+  const ticketsTotalByEvent = new Map<string, number>()
+  for (const t of tickets ?? []) {
+    ticketsTotalByEvent.set(t.event_id, (ticketsTotalByEvent.get(t.event_id) || 0) + Number(t.quantity || 0))
+  }
+
+  // Fetch confirmed bookings to compute sold and revenue
+  const { data: bookings, error: bookingsError } = await supabase
+    .from('bookings')
+    .select('event_id, quantity, total_amount, booking_status')
+    .in('event_id', eventIds)
+
+  if (bookingsError) return { data: null, error: bookingsError }
+
+  const soldByEvent = new Map<string, number>()
+  const revenueByEvent = new Map<string, number>()
+  for (const b of bookings ?? []) {
+    if (b.booking_status !== 'confirmed') continue
+    soldByEvent.set(b.event_id, (soldByEvent.get(b.event_id) || 0) + Number(b.quantity || 0))
+    revenueByEvent.set(b.event_id, (revenueByEvent.get(b.event_id) || 0) + Number(b.total_amount || 0))
+  }
+
+  const mapped = (events ?? []).map((row) =>
+    mapEventRowToEventItem(row, {
+      sold: soldByEvent.get(row.id) || 0,
+      revenue: revenueByEvent.get(row.id) || 0,
+      ticketsTotal: ticketsTotalByEvent.get(row.id) ?? row.total_tickets,
+    })
+  )
+
+  return { data: mapped, error: null }
+}
+
 // Get a single event with tickets and aggregates mapped to UI type
 export async function getEventByIdMapped(eventId: string) {
   const { data: event, error: eventError } = await supabase

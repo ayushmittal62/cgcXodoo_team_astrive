@@ -49,10 +49,9 @@ function GranularityCharts({
 
   useEffect(() => {
     if (!organizer) {
-  // If no organizer, keep empty data
-      setDailyData(buildFallbackSeries(14, type === 'revenue' ? 1200 : 120, 0.3))
-      setWeeklyData(buildFallbackSeries(12, type === 'revenue' ? 6000 : 600, 0.2))
-      setMonthlyData(buildFallbackSeries(6, type === 'revenue' ? 24000 : 2400, 0.15))
+      setDailyData([])
+      setWeeklyData([])
+      setMonthlyData([])
       setLoading(false)
       return
     }
@@ -75,15 +74,15 @@ function GranularityCharts({
             y: type === 'revenue' ? item.total_revenue || 0 : item.total_bookings || 0
           }))
 
-        setDailyData(transformData(dailyRes.data || []))
-        setWeeklyData(transformData(weeklyRes.data || []))
-        setMonthlyData(transformData(monthlyRes.data || []))
+          setDailyData(transformData(dailyRes.data || []))
+          setWeeklyData(transformData(weeklyRes.data || []))
+          setMonthlyData(transformData(monthlyRes.data || []))
       } catch (error) {
         console.error('Error fetching chart data:', error)
-  // Keep empty on error
-        setDailyData(buildFallbackSeries(14, type === 'revenue' ? 1200 : 120, 0.3))
-        setWeeklyData(buildFallbackSeries(12, type === 'revenue' ? 6000 : 600, 0.2))
-        setMonthlyData(buildFallbackSeries(6, type === 'revenue' ? 24000 : 2400, 0.15))
+          // Keep empty on error
+          setDailyData([])
+          setWeeklyData([])
+          setMonthlyData([])
       } finally {
         setLoading(false)
       }
@@ -95,6 +94,15 @@ function GranularityCharts({
   if (loading) {
     return <div className="h-64 bg-muted animate-pulse rounded-xl" />
   }
+
+    const hasAnyData = (dailyData.length + weeklyData.length + monthlyData.length) > 0
+    if (!hasAnyData) {
+      return (
+        <div className="rounded-2xl border border-border/60 bg-card/90 p-6 text-center text-sm text-muted-foreground">
+          No activity yet. Your sales and tickets will appear here once you get bookings.
+        </div>
+      )
+    }
 
   return (
     <Tabs defaultValue="weekly" className="w-full">
@@ -118,13 +126,3 @@ function GranularityCharts({
 }
 
 // No mock fallback
-function buildFallbackSeries(len = 12, base = 1000, variance = 0.25) {
-  const out: SeriesPoint[] = []
-  let last = base
-  for (let i = 0; i < len; i++) {
-    const delta = (Math.random() - 0.5) * variance * base
-    last = Math.max(0, last + delta)
-    out.push({ x: `P${i + 1}`, y: Math.round(last) })
-  }
-  return out
-}

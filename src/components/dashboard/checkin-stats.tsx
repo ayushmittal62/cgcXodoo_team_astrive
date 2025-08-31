@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { type Organizer, type Event } from "@/lib/supabase"
+import { type Organizer, type Event, supabase } from "@/lib/supabase"
 import { getOrganizerEvents } from "@/lib/supabase"
 
 interface CheckinStatsProps {
@@ -37,7 +37,44 @@ export function CheckinStats({ organizer }: CheckinStatsProps) {
           const activeEvents = (eventsData || []).filter(event => 
             event.status === 'published' || event.status === 'active'
           )
-          setEvents(activeEvents)
+
+          // If no active events, clear and return
+          if (activeEvents.length === 0) {
+            setEvents([])
+            return
+          }
+
+          // 1) Fetch bookings for these events
+          const eventIds = activeEvents.map(e => e.id)
+          const { data: bookings, error: bookingsError } = await supabase
+            .from('bookings')
+            .select('id, event_id, booking_status, booking_attendees(checked_in)')
+            .in('event_id', eventIds)
+
+          if (bookingsError) {
+            console.error('Error fetching bookings for checkins:', bookingsError)
+            setEvents(activeEvents as EventWithStats[])
+            return
+          }
+
+          // 2) Aggregate attendees and checked-in per event
+          const totals = new Map<string, { attendees: number; checked: number }>()
+          for (const b of bookings || []) {
+            const evId = (b as any).event_id as string
+            const arr = Array.isArray((b as any).booking_attendees) ? (b as any).booking_attendees : []
+            const prev = totals.get(evId) || { attendees: 0, checked: 0 }
+            prev.attendees += arr.length
+            prev.checked += arr.filter((x: any) => x.checked_in).length
+            totals.set(evId, prev)
+          }
+
+          // 3) Attach stats to events
+          const enriched: EventWithStats[] = activeEvents.map(e => {
+            const t = totals.get(e.id) || { attendees: 0, checked: 0 }
+            return { ...e, total_bookings: t.attendees, checked_in_count: t.checked }
+          })
+
+          setEvents(enriched)
         }
       } catch (err) {
         console.error('Error in fetchEvents:', err)

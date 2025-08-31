@@ -7,7 +7,7 @@ export default function OrganizerPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect to dashboard by default
+
     router.push('/organizer/dashboard')
   }, [router])
 

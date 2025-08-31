@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { useOrganizerData } from "@/hooks/useOrganizerData"
-import { getOrganizerEventsOverview, updateEventsStatus } from "@/lib/supabase"
+import { getOrganizerEventsOverview, getOrganizerEventsOverviewByOwnerIds, updateEventsStatus, supabase } from "@/lib/supabase"
 import type { EventItem } from "@/lib/organizer"
 import { PlusCircle } from "lucide-react"
 import { EventGrid } from "@/components/event-grid"
@@ -34,36 +35,76 @@ function isCompleted(e: EventItem, now: number) {
 export default function EventsListPage() {
   const { toast } = useToast()
   const { organizer } = useOrganizerData()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventItem[]>([])
   const [q, setQ] = useState("")
   const [category, setCategory] = useState<string>("all")
   const [status, setStatus] = useState<StatusFilter>("all")
   const [dateFilter, setDateFilter] = useState<DateFilter>("all")
-  const [tab, setTab] = useState<"ongoing" | "upcoming" | "completed">("ongoing")
+  const [tab, setTab] = useState<"all" | "ongoing" | "upcoming" | "completed">("all")
 
+  // Shared loader
+  async function loadEvents() {
+    try {
+      setLoading(true)
+      if (!organizer) {
+        setEvents([])
+        return
+      }
+      // Try both the organizer.id and the known owner keys (user id/email) to cover legacy rows
+      const ownerCandidates = [organizer.id, organizer.user_id].filter(Boolean) as string[]
+      const { data, error } = await getOrganizerEventsOverviewByOwnerIds(ownerCandidates)
+      if (error) {
+        console.error('[events] load error', error)
+        toast({ title: 'Failed to load events', description: String((error as any).message || error) })
+        setEvents([])
+      } else {
+        setEvents((data as any) || [])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Initial/URL-driven load
   useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true)
-        if (!organizer) {
-          setEvents([])
-          return
-        }
-        const { data, error } = await getOrganizerEventsOverview(organizer.id)
-        if (error) {
-          console.error('[events] load error', error)
-          toast({ title: 'Failed to load events', description: String(error.message || error) })
-          setEvents([])
-        } else {
-          setEvents((data as any) || [])
-        }
-      } finally {
-        setLoading(false)
+    loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizer, searchParams])
+
+  // Realtime: subscribe to this organizer's events (by id and by user_id/email) and refetch on change
+  useEffect(() => {
+    if (!organizer) return
+    const candidates = Array.from(new Set([organizer.id, organizer.user_id].filter(Boolean))) as string[]
+    if (candidates.length === 0) return
+
+    const channels = candidates.map((owner) =>
+      supabase
+        .channel(`events-realtime-${owner}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'events', filter: `organizer_id=eq.${owner}` },
+          () => { loadEvents() }
+        )
+        .subscribe()
+    )
+
+    return () => {
+      for (const ch of channels) {
+        try { supabase.removeChannel(ch) } catch {}
       }
     }
-    load()
-  }, [organizer])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizer?.id, organizer?.user_id])
+
+  // Sync tab from URL if provided (?tab=all|ongoing|upcoming|completed)
+  useEffect(() => {
+    const t = searchParams?.get('tab') as typeof tab | null
+    if (t && (t === 'all' || t === 'ongoing' || t === 'upcoming' || t === 'completed') && t !== tab) {
+      setTab(t)
+    }
+  }, [searchParams, tab])
 
   const categories = useMemo(() => {
     const s = new Set(events.map((e) => e.category))
@@ -75,7 +116,23 @@ export default function EventsListPage() {
   const tabbed = useMemo(() => {
     if (tab === "ongoing") return events.filter((e) => isOngoing(e, now))
     if (tab === "upcoming") return events.filter((e) => isUpcoming(e, now))
-    return events.filter((e) => isCompleted(e, now))
+    if (tab === "completed") return events.filter((e) => isCompleted(e, now))
+    return events
+  }, [events, tab, now])
+
+  // If the current tab becomes empty but another tab has items, switch to a non-empty tab (prefer all > upcoming > ongoing > completed)
+  useEffect(() => {
+    if (!events || events.length === 0) return
+    const ongoing = events.filter((e) => isOngoing(e, now))
+    const upcoming = events.filter((e) => isUpcoming(e, now))
+    const completed = events.filter((e) => isCompleted(e, now))
+    const bucket = tab === 'ongoing' ? ongoing : tab === 'upcoming' ? upcoming : tab === 'completed' ? completed : events
+    if (bucket.length === 0) {
+      if (events.length > 0 && tab !== 'all') setTab('all')
+      else if (upcoming.length > 0 && tab !== 'upcoming') setTab('upcoming')
+      else if (ongoing.length > 0 && tab !== 'ongoing') setTab('ongoing')
+      else if (completed.length > 0 && tab !== 'completed') setTab('completed')
+    }
   }, [events, tab, now])
 
   const filtered = useMemo(() => {
@@ -141,20 +198,42 @@ export default function EventsListPage() {
       <div className="max-w-[1400px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-lg md:text-xl font-semibold">Events</h1>
-          <Button asChild className="rounded-xl">
-            <Link href="/organizer/events/new">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Event
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="rounded-xl bg-transparent" onClick={() => {
+              // trigger a refetch by nudging search params (no navigation needed in App Router for effect)
+              window.history.replaceState(null, '', window.location.pathname + '?refresh=' + Date.now())
+            }}>Refresh</Button>
+            <Button asChild className="rounded-xl">
+              <Link href="/organizer/events/new">
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Event
+              </Link>
+            </Button>
+          </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
+    <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
           <TabsList className="rounded-xl">
+      <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="ongoing">Ongoing</TabsTrigger>
             <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
+          <TabsContent value="all" className="mt-4">
+            {loading ? (
+              <SkeletonGrid />
+            ) : filtered.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <EventGrid
+                items={filtered}
+                onPublish={bulkPublish}
+                onUnpublish={bulkUnpublish}
+                onCancel={bulkCancel}
+                onExport={bulkExport}
+              />
+            )}
+          </TabsContent>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <div className="relative">
