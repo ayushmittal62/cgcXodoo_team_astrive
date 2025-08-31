@@ -20,16 +20,24 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from PIL import Image
 
-# Load environment variables
-load_dotenv()
+# Load environment variables - try .env.local first (Next.js convention), then .env
+load_dotenv(dotenv_path="../.env.local")  # Try Next.js .env.local first
+load_dotenv()  # Fallback to .env
 
 # Initialize Supabase client
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+    print("❌ Missing Supabase environment variables!")
+    print(f"SUPABASE_URL: {'✅' if SUPABASE_URL else '❌ Missing'}")
+    print(f"SUPABASE_SERVICE_ROLE_KEY: {'✅' if SUPABASE_SERVICE_ROLE_KEY else '❌ Missing'}")
+    exit(1)
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Email configuration - Brevo SMTP
-BREVO_SMTP_SERVER = os.environ.get("aBREVO_SMTP_SERVER")
+BREVO_SMTP_SERVER = os.environ.get("BREVO_SMTP_SERVER")
 BREVO_SMTP_PORT = int(os.environ.get("BREVO_SMTP_PORT", 587))
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 BREVO_SENDER_EMAIL = os.environ.get("BREVO_SENDER_EMAIL")
