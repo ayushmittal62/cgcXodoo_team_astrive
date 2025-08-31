@@ -3,7 +3,8 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
+/* ---------------- TEAL THEME (frontend-organizer) ---------------- */
+:root.teal {
   --background: #0b0b0d;
   --foreground: #f5f7f8;
 
@@ -32,40 +33,9 @@
 
   --border: #2a2a31;
   --input: #2a2a31;
-  --ring: #22d3ee; /* subtle cyan ring for focus visibility */
-
-  --radius: 0.75rem; /* rounded-2xl look */
-
-  --sidebar: #101013;
-  --topbar: #0f0f12;
-}
-
-.dark {
-  /* Dark is default; keep same values for consistency */
-  --background: #0b0b0d;
-  --foreground: #f5f7f8;
-  --card: #151518;
-  --card-foreground: #f5f7f8;
-  --popover: #151518;
-  --popover-foreground: #f5f7f8;
-
-  --primary: #6ee7b7;
-  --primary-foreground: #0b0b0d;
-
-  --secondary: #1c1c21;
-  --secondary-foreground: #f5f7f8;
-  --muted: #1c1c21;
-  --muted-foreground: #a3a3ad;
-
-  --accent: #6ee7b7;
-  --accent-foreground: #0b0b0d;
-
-  --destructive: #ef4444;
-  --destructive-foreground: #0b0b0d;
-
-  --border: #2a2a31;
-  --input: #2a2a31;
   --ring: #22d3ee;
+
+  --radius: 0.75rem;
 
   --sidebar: #101013;
   --sidebar-foreground: #f5f7f8;
@@ -77,6 +47,63 @@
   --sidebar-ring: #22d3ee;
 }
 
+.dark.teal {
+  /* Keep same as root teal but in dark mode (already dark default) */
+}
+
+/* ---------------- CYAN THEME (main) ---------------- */
+:root.cyan {
+  --background: #121212;
+  --foreground: #e0e0e0;
+
+  --card: rgba(255, 255, 255, 0.1);
+  --card-foreground: #e0e0e0;
+
+  --popover: rgba(255, 255, 255, 0.2);
+  --popover-foreground: #e0e0e0;
+
+  --primary: #00bcd4;
+  --primary-foreground: #ffffff;
+
+  --secondary: #1e88e5;
+  --secondary-foreground: #ffffff;
+
+  --muted: rgba(255, 255, 255, 0.5);
+  --muted-foreground: #e0e0e0;
+
+  --accent: #1e88e5;
+  --accent-foreground: #ffffff;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: rgba(255, 255, 255, 0.2);
+  --input: #1e1e1e;
+  --ring: rgba(0, 188, 212, 0.5);
+
+  --chart-1: #00bcd4;
+  --chart-2: #1e88e5;
+  --chart-3: #e0e0e0;
+  --chart-4: #374151;
+  --chart-5: #121212;
+
+  --radius: 0.5rem;
+
+  --sidebar: #121212;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-primary: #00bcd4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e88e5;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.2);
+  --sidebar-ring: rgba(0, 188, 212, 0.5);
+}
+
+.dark.cyan {
+  /* Same values for dark mode */
+}
+
+/* ---------------- THEME SHARED VARIABLES ---------------- */
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -127,7 +154,7 @@
   }
 }
 
-/* Prefer reduced motion */
+/* ---------------- UTILITIES ---------------- */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 1ms !important;
@@ -137,10 +164,32 @@
   }
 }
 
-/* App shell helpers */
 @layer utilities {
   .max-container {
     max-width: 1400px;
     margin-inline: auto;
+  }
+
+  /* line clamp utils */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
   }
 }

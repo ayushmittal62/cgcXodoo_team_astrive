@@ -35,6 +35,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+
     let mounted = true;
     
     const unsubscribe = onAuthStateChange(async (user) => {
