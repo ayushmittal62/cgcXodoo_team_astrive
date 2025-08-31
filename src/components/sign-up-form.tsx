@@ -55,7 +55,13 @@ export function SignUp({ className, onGoogleSignUp }: SignUpProps) {
           >
             <div className="space-y-2">
               <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">
-                Join EventHive
+                Join{" "}
+                <Link 
+                  href="/attendee" 
+                  className="text-white hover:text-white/80 transition-colors cursor-pointer"
+                >
+                  EventHive
+                </Link>
               </h1>
               <p className="text-[1.5rem] text-white/70 font-light">
                 Create your account

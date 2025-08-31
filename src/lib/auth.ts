@@ -7,6 +7,7 @@ import { createClient} from "./supabase";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+
 // Sign in with Google
 export const signInWithGoogle = async (): Promise<User | null> => {
   try {
@@ -57,6 +58,7 @@ export const signUpWithGoogle = async (): Promise<User | null> => {
         }
       } else {
         console.log('User already exists in Supabase:', existingUser);
+
       }
     }
     

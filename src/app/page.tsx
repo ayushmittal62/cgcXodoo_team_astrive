@@ -1,3 +1,4 @@
+
 "use client"
 import { AnimatedBackground } from "@/components/ui/animated-background"
 import { Button } from "@/components/ui/button"
@@ -147,5 +148,8 @@ export default function Page() {
         </footer>
       </main>
     </AnimatedBackground>
+
   )
 }
+
+export default Home
