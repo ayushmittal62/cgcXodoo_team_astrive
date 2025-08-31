@@ -15,16 +15,34 @@ async function triggerEmailAutomation(bookingId: string): Promise<void> {
     })
     
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Email API error: ${errorData.error || 'Unknown error'}`)
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.error || errorMessage
+        console.error('❌ Email API error details:', errorData)
+      } catch (jsonError) {
+        // If response isn't valid JSON, use the status text
+        console.warn('Response is not valid JSON, using status text')
+      }
+      
+      // Log the error but don't throw it to avoid breaking the booking process
+      console.error(`❌ Email automation failed: ${errorMessage}`)
+      console.warn('⚠️ Email will be marked as pending and can be retried later')
+      return
     }
     
-    const result = await response.json()
-    console.log('✅ Email automation result:', result.message)
+    let result
+    try {
+      result = await response.json()
+      console.log('✅ Email automation result:', result.message)
+    } catch (jsonError) {
+      console.log('✅ Email automation completed (no JSON response)')
+    }
     
   } catch (error) {
     console.error('❌ Failed to trigger email automation:', error)
-    throw error
+    // Don't throw the error to avoid breaking the booking process
+    console.warn('⚠️ Email automation failed but booking will continue')
   }
 }
 

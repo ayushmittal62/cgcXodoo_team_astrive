@@ -53,9 +53,32 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Email API error:', error)
     
+    // More detailed error logging
+    if (error.code) {
+      console.error(`Error code: ${error.code}`)
+    }
+    if (error.signal) {
+      console.error(`Process killed with signal: ${error.signal}`)
+    }
+    
+    let errorMessage = error.message
+    
+    // Check if Python is available
+    if (error.message.includes("'python' is not recognized")) {
+      errorMessage = "Python is not available. Please ensure Python is installed and in PATH."
+    }
+    // Check for common Python issues
+    else if (error.message.includes("No module named")) {
+      errorMessage = "Required Python packages not installed. Run: pip install -r backend/email_requirements.txt"
+    }
+    // Check for environment variable issues
+    else if (error.message.includes("None")) {
+      errorMessage = "Environment variables not configured. Check .env.local file."
+    }
+    
     return NextResponse.json({
       error: 'Failed to send email',
-      details: error.message,
+      details: errorMessage,
       bookingId: request.body ? (await request.json()).bookingId : 'unknown'
     }, { status: 500 })
   }
