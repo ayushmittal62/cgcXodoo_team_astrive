@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { mockFeedback, mockEvents } from "@/lib/mock-data"
 import { formatDateTimeISO } from "@/lib/formatters"
 import { Star } from "lucide-react"
 import { useMemo, useState } from "react"
@@ -11,9 +10,8 @@ import { Badge } from "@/components/ui/badge"
 
 export function FeedbackList() {
   const [minRating, setMinRating] = useState(0)
-
-  const items = useMemo(() => mockFeedback.filter((f) => f.rating >= minRating), [minRating])
-  const eventMap = new Map(mockEvents.map((e) => [e.id, e.title]))
+  const items: any[] = [] // TODO: Replace with Supabase feedback once schema available
+  const eventMap = new Map<string, string>()
 
   return (
     <Card className="rounded-2xl bg-card/90 border-border/60">

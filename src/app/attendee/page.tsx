@@ -1,12 +1,41 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 import AttendeeNavbar from '@/components/attendee-navbar';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 
 const Attendee = () => {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    console.log('[Attendee] Auth state', {
+      loading,
+      userEmail: user?.email ?? null,
+      displayName: user?.displayName ?? null,
+      userProfileEmail: userProfile?.email ?? null,
+      userProfileName: (userProfile as any)?.name ?? null,
+    });
+    if (loading) {
+      const t = setTimeout(() => {
+        console.warn('[Attendee] Still loading after 2s — check auth init');
+      }, 2000);
+      return () => clearTimeout(t);
+    }
+  }, [loading, user?.email, user?.displayName, userProfile?.email, (userProfile as any)?.name]);
+
+  const handleGoOrganizer = async () => {
+    try {
+      console.log('[Attendee] Switching to organizer...');
+      router.push('/organizer');
+      console.log('[Attendee] Navigation to /organizer requested');
+    } catch (err) {
+      console.error('[Attendee] Failed to navigate to organizer', err);
+    }
+  };
 
   // Show loading while auth is being checked
   if (loading) {
@@ -45,6 +74,11 @@ const Attendee = () => {
       <AttendeeNavbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-end mb-4">
+          <Button onClick={handleGoOrganizer} className="rounded-full">
+            Switch to Organizer
+          </Button>
+        </div>
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -52,7 +86,7 @@ const Attendee = () => {
         >
           {/* Welcome Section */}
           <div className="mb-12">
-            <h1 className="text-4xl font-bold mb-2">Welcome back, {user?.displayName || 'Attendee'}!</h1>
+            <h1 className="text-4xl font-bold mb-2">Welcome back, {userProfile?.name || user?.displayName || 'Attendee'}!</h1>
             <p className="text-white/70 text-lg">Discover and attend amazing events</p>
           </div>
 

@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { mockBookings } from "@/lib/mock-data"
 import { formatDateTimeISO } from "@/lib/formatters"
 
 type ScanResult =
@@ -23,8 +22,9 @@ export default function ScannerPage() {
   function scan() {
     const trimmed = code.trim()
     if (!trimmed) return
-    const booking = mockBookings.find((b) => b.id === trimmed)
-    if (!booking) {
+  // TODO: Lookup booking by code from Supabase when QR codes are wired
+  const booking: any = null
+  if (!booking) {
       setHistory((prev) => [{ status: "invalid" as const, code: trimmed }, ...prev].slice(0, 5))
       setCode("")
       return

@@ -2,10 +2,9 @@
 
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { mockEvents } from "@/lib/mock-data"
 
 export function CheckinStats() {
-  const ongoing = mockEvents.filter((e) => e.status === "published")
+  const ongoing: any[] = []
 
   return (
     <Card className="rounded-2xl bg-card/90 border-border/60">
@@ -17,10 +16,10 @@ export function CheckinStats() {
           <EmptyCheckins />
         ) : (
           ongoing.map((e) => {
-            const total = e.tickets.reduce((acc, t) => acc + t.quantity, 0)
-            const sold = e.sold
-            const checkedIn = Math.round(sold * 0.62) // simulated
-            const pct = Math.min(100, Math.round((checkedIn / sold) * 100))
+            const total = 0
+            const sold = 0
+            const checkedIn = 0
+            const pct = 0
             return (
               <div key={e.id} className="space-y-2">
                 <div className="flex items-center justify-between text-sm">

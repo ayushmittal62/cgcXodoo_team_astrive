@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
-import { mockEvents as seedEvents } from "@/lib/mock-data"
+import { useOrganizerData } from "@/hooks/useOrganizerData"
+import { getOrganizerEventsOverview, updateEventsStatus } from "@/lib/supabase"
 import type { EventItem } from "@/lib/organizer"
 import { PlusCircle } from "lucide-react"
 import { EventGrid } from "@/components/event-grid"
@@ -32,6 +33,7 @@ function isCompleted(e: EventItem, now: number) {
 
 export default function EventsListPage() {
   const { toast } = useToast()
+  const { organizer } = useOrganizerData()
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventItem[]>([])
   const [q, setQ] = useState("")
@@ -41,13 +43,27 @@ export default function EventsListPage() {
   const [tab, setTab] = useState<"ongoing" | "upcoming" | "completed">("ongoing")
 
   useEffect(() => {
-    // simulate fetch
-    const t = setTimeout(() => {
-      setEvents(seedEvents)
-      setLoading(false)
-    }, 500)
-    return () => clearTimeout(t)
-  }, [])
+    async function load() {
+      try {
+        setLoading(true)
+        if (!organizer) {
+          setEvents([])
+          return
+        }
+        const { data, error } = await getOrganizerEventsOverview(organizer.id)
+        if (error) {
+          console.error('[events] load error', error)
+          toast({ title: 'Failed to load events', description: String(error.message || error) })
+          setEvents([])
+        } else {
+          setEvents((data as any) || [])
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [organizer])
 
   const categories = useMemo(() => {
     const s = new Set(events.map((e) => e.category))
@@ -100,16 +116,19 @@ export default function EventsListPage() {
   }, [tabbed, q, category, status, dateFilter])
 
   function bulkPublish(ids: string[]) {
-    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "published" } as EventItem) : e)))
-    toast({ title: "Event published", description: `${ids.length} event(s) published` })
+  setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "published" } as EventItem) : e)))
+  updateEventsStatus(ids, 'published').catch(() => {})
+  toast({ title: "Event published", description: `${ids.length} event(s) published` })
   }
   function bulkUnpublish(ids: string[]) {
-    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "draft" } as EventItem) : e)))
-    toast({ title: "Event unpublished", description: `${ids.length} event(s) set to Draft` })
+  setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "draft" } as EventItem) : e)))
+  updateEventsStatus(ids, 'draft').catch(() => {})
+  toast({ title: "Event unpublished", description: `${ids.length} event(s) set to Draft` })
   }
   function bulkCancel(ids: string[]) {
-    setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "cancelled" } as EventItem) : e)))
-    toast({ title: "Event cancelled", description: `${ids.length} event(s) cancelled` })
+  setEvents((prev) => prev.map((e) => (ids.includes(e.id) ? ({ ...e, status: "cancelled" } as EventItem) : e)))
+  updateEventsStatus(ids, 'cancelled').catch(() => {})
+  toast({ title: "Event cancelled", description: `${ids.length} event(s) cancelled` })
   }
   function bulkExport(ids: string[]) {
     // TODO: integrate real export

@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, ArrowDown, ArrowUp, Trash } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useOrganizerData } from "@/hooks/useOrganizerData"
+import { createEventWithTickets } from "@/lib/supabase"
 
 // Schema
 const ticketSchema = z.object({
@@ -67,6 +69,7 @@ const initialState: FormState = {
 export default function CreateEventWizardPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { organizer } = useOrganizerData()
   const [step, setStep] = useState<StepKey>("basic")
   const [form, setForm] = useState<FormState>(initialState)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -183,7 +186,7 @@ export default function CreateEventWizardPage() {
     return true
   }
 
-  function publish() {
+  async function publish() {
     // Validate all
     const r = formSchema.safeParse(form)
     if (!r.success) {
@@ -196,10 +199,36 @@ export default function CreateEventWizardPage() {
       toast({ title: "Missing information", description: "Please resolve validation errors before publishing." })
       return
     }
-    // Simulate submit
-    discardDraft()
-    toast({ title: "Event created", description: `${form.basic.title} has been created.` })
-    router.push("/organizer/events")
+    if (!organizer) {
+      toast({ title: "Organizer not found", description: "Complete KYC to create events." })
+      return
+    }
+    try {
+      const payload = {
+        title: form.basic.title,
+        description: form.basic.description,
+        location: form.basic.location,
+        category: form.basic.category,
+        visibility: form.basic.visibility as any,
+        posterUrl: form.basic.posterUrl || undefined,
+        startAt: form.schedule.startAt,
+        endAt: form.schedule.endAt,
+        status: 'published' as const,
+        tickets: form.tickets.map((t) => ({ name: t.name, price: t.price, quantity: t.quantity, perUserLimit: t.perUserLimit ?? null })),
+      }
+      const { data, error } = await createEventWithTickets(organizer.id, payload)
+      if (error) {
+        console.error('[create-event] error', error)
+        toast({ title: 'Failed to create event', description: String((error as any).message || error) })
+        return
+      }
+      discardDraft()
+      toast({ title: 'Event created', description: `${form.basic.title} has been created.` })
+      router.push('/organizer/events')
+    } catch (e: any) {
+      console.error('[create-event] unexpected', e)
+      toast({ title: 'Error', description: String(e?.message || e) })
+    }
   }
 
   const steps: { key: StepKey; label: string }[] = [

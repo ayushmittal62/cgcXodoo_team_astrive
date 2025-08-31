@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// Make sure getOrganizerEvents is exported from supabase or import the correct function
 import { type Organizer, type Event } from "@/lib/supabase"
-import { getOrganizerEvents } from "@/lib/supabase" // Update the import path if needed
+import { getOrganizerEvents } from "@/lib/supabase"
 
 interface CheckinStatsProps {
   organizer: Organizer | null

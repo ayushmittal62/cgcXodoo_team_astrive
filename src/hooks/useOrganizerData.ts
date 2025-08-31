@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { 
   getOrganizerByUserId,
@@ -38,7 +38,7 @@ export function useOrganizerData() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (user && userProfile?.id) {
+    if (user && userProfile?.email) {
       fetchOrganizerData()
     }
   }, [user, userProfile])
@@ -48,23 +48,38 @@ export function useOrganizerData() {
       setLoading(true)
       setError(null)
 
-      if (!userProfile?.id) {
-        setError('No user profile available')
+      if (!userProfile?.email) {
+        setError('No user profile email available')
         return
       }
 
-      // Get organizer details
-      const { data: organizerData, error: organizerError } = await getOrganizerByUserId(userProfile.id)
-      
-      if (organizerError) {
+      // Get organizer details (email first, then fallback to user id)
+      const email = userProfile.email.toLowerCase()
+      console.log('[useOrganizerData] Fetching organizer by email', email)
+      let { data: organizerData, error: organizerError }: any = await getOrganizerByUserId(email)
+
+      if ((organizerError && organizerError.code === 'PGRST116') || !organizerData) {
+        console.log('[useOrganizerData] No organizer by email, retry with user id', userProfile.id)
+        const res2: any = await getOrganizerByUserId(userProfile.id)
+        organizerData = res2.data
+        organizerError = res2.error
+      }
+
+      if (organizerError && organizerError.code !== 'PGRST116') {
+        console.error('[useOrganizerData] Organizer fetch error', organizerError?.message || JSON.stringify(organizerError))
         setError('Failed to fetch organizer data')
         return
       }
 
-      setOrganizer(organizerData)
+      if (!organizerData) {
+        console.log('[useOrganizerData] Organizer not found; proceeding without organizer')
+        setOrganizer(null)
+      } else {
+        setOrganizer(organizerData)
+      }
 
       // Get dashboard summary if organizer exists
-      if (organizerData) {
+  if (organizerData) {
         const { data: summaryData, error: summaryError } = await getDashboardSummary(organizerData.id)
         
         if (summaryError) {
@@ -81,21 +96,21 @@ export function useOrganizerData() {
     }
   }
 
-  const getRevenueData = async (period: 'daily' | 'weekly' | 'monthly'): Promise<RevenueData[]> => {
-    if (!organizer) return []
-    
+  const getRevenueData = useCallback(async (period: 'daily' | 'weekly' | 'monthly'): Promise<RevenueData[]> => {
+    if (!organizer?.id) return []
+
     try {
       const { data, error } = await getRevenueByPeriod(organizer.id, period)
       if (error) {
-        console.error('Error fetching revenue data:', error)
+        console.error('Error fetching revenue data:', error?.message || JSON.stringify(error))
         return []
       }
       return data || []
-    } catch (err) {
-      console.error('Error in getRevenueData:', err)
+    } catch (err: any) {
+      console.error('Error in getRevenueData:', err?.message || JSON.stringify(err))
       return []
     }
-  }
+  }, [organizer?.id])
 
   // getEvents function removed because getOrganizerEvents is not available
 

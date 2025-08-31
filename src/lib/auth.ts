@@ -25,21 +25,38 @@ export const signUpWithGoogle = async (): Promise<User | null> => {
     const user = result.user;
     
     if (user) {
-      // Save user data to Supabase using your existing users table
-      // Import your Supabase URL and anon key from environment or config
-      
-      const { data, error } = await createClient(supabaseUrl, supabaseAnonKey).from('users').insert({
-        firebaseUid: user.uid, // We still pass this but don't store it in the table
-        email: user.email || '',
-        displayName: user.displayName || undefined,
-        photoUrl: user.photoURL || undefined
-      });
-      
-      if (error) {
-        console.error('Error saving user to Supabase:', error);
-        // Don't throw error here to allow user to continue even if Supabase fails
+      if (!user.email) {
+        console.error('Google sign-up returned user without email');
+        return user;
+      }
+      const email = user.email.toLowerCase();
+      // Check if user already exists in Supabase
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      const { data: existingUser, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (!existingUser && !fetchError) {
+        // User doesn't exist, create new profile
+        const { data, error } = await supabase.from('users').insert({
+          email,
+          name: user.displayName || '',
+          phone: null,
+          role: 'attendee',
+          kycVerified: false,
+          photoUrl: user.photoURL || null,
+          created_at: new Date().toISOString()
+        });
+        
+        if (error) {
+          console.error('Error saving user to Supabase:', error);
+        } else {
+          console.log('User profile saved to Supabase:', data);
+        }
       } else {
-        console.log('User profile saved to Supabase:', data);
+        console.log('User already exists in Supabase:', existingUser);
       }
     }
     

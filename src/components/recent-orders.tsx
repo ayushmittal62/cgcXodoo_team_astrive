@@ -5,24 +5,16 @@ import { DataTable } from "@/components/data-table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { mockBookings, mockEvents } from "@/lib/mock-data"
+// TODO: Replace with live data or remove this duplicate component
 import { formatCurrencyINR, formatDateTimeISO } from "@/lib/formatters"
-import type { Booking } from "@/types/organizer"
+import type { Booking } from "@/lib/organizer"
 import { useToast } from "@/hooks/use-toast"
 
 export function RecentOrders() {
   const { toast } = useToast()
   const [selected, setSelected] = useState<Booking | null>(null)
 
-  const rows = useMemo(() => {
-    const eventMap = new Map(mockEvents.map((e) => [e.id, e.title]))
-    return mockBookings.map((b) => ({
-      ...b,
-      eventTitle: eventMap.get(b.eventId) || b.eventId,
-      amountINR: formatCurrencyINR(b.amount),
-      createdAtFmt: formatDateTimeISO(b.createdAt),
-    }))
-  }, [])
+  const rows = useMemo(() => [], [])
 
   function onExportCsv() {
     // TODO: replace with real export
@@ -85,7 +77,7 @@ function InteractiveRowOpener({ onOpen }: { onOpen: (row: Booking) => void }) {
 }
 
 function OrderSheet({ booking, onOpenChange }: { booking: Booking | null; onOpenChange: (open: boolean) => void }) {
-  const event = booking ? mockEvents.find((e) => e.id === booking.eventId) : null
+  const event: any = null
   const open = Boolean(booking)
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

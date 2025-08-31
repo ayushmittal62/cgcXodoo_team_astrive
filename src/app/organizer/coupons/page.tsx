@@ -5,39 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DataTable } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { mockEvents } from "@/lib/mock-data"
+// TODO: Connect to Supabase coupons when available
 import type { Coupon } from "@/lib/organizer"
 import { useToast } from "@/hooks/use-toast"
 
-function seed(eventId: string): Coupon[] {
-  return [
-    {
-      id: `cp_${eventId}_10`,
-      code: "SAVE10",
-      type: "percent",
-      value: 10,
-      startsAt: new Date().toISOString(),
-      endsAt: new Date(Date.now() + 5 * 864e5).toISOString(),
-      used: Math.floor(Math.random() * 50),
-      maxUses: 200,
-      active: true,
-      eventId,
-    },
-  ]
-}
+// Seed removed (was demo-only)
 
 export default function OrganizerCouponsPage() {
   const { toast } = useToast()
-  const initial = useMemo(() => mockEvents.flatMap((e) => seed(e.id)), [])
+  const initial = useMemo(() => [] as Coupon[], [])
   const [rows, setRows] = useState<(Coupon & { eventTitle: string; window: string })[]>(
-    initial.map((c) => {
-      const ev = mockEvents.find((e) => e.id === c.eventId)
-      return {
-        ...c,
-        eventTitle: ev?.title || c.eventId,
-        window: `${new Date(c.startsAt).toLocaleDateString()} → ${new Date(c.endsAt).toLocaleDateString()}`,
-      }
-    }),
+    initial.map((c) => ({
+      ...c,
+      eventTitle: c.eventId || "All Events",
+      window: `${new Date(c.startsAt).toLocaleDateString()} → ${new Date(c.endsAt).toLocaleDateString()}`,
+    })),
   )
 
   function onExportCsv(selected: any[]) {

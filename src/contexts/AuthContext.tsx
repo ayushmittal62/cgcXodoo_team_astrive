@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "firebase/auth";
-import { onAuthStateChange } from "@/lib/auth";
+import { onAuthStateChange, getCurrentUser } from "@/lib/auth";
 import { getUserProfileByEmail, createUserProfile, type UserProfile } from "@/lib/supabase";
 
 interface AuthContextType {
@@ -43,18 +43,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("Auth state changed:", user ? `User signed in: ${user.email}` : "User signed out");
       setUser(user);
       
-      if (user && user.email) {
+  if (user && user.email) {
+        const email = user.email.toLowerCase();
         // Fetch Supabase user profile by email
         try {
-          console.log("Fetching user profile for:", user.email);
-          let { data: profile, error } = await getUserProfileByEmail(user.email);
+          console.log("Fetching user profile for:", email);
+          let { data: profile, error } = await getUserProfileByEmail(email);
           
           if (error || !profile) {
             console.log("User profile not found, creating new profile...");
             // User doesn't exist, create a new profile
             const { data: newProfile, error: createError } = await createUserProfile({
-              firebaseUid: user.uid,
-              email: user.email,
+              email,
               displayName: user.displayName || undefined,
               photoUrl: user.photoURL || undefined
             });
@@ -75,6 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserProfile(null);
         }
       } else {
+        console.warn('No Firebase user or user.email is null — cannot fetch/create profile');
         setUserProfile(null);
       }
       
@@ -83,13 +84,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     });
 
-    // Fallback timeout to prevent infinite loading
+    // Fallback timeout to prevent infinite loading and to verify email once
     const timeout = setTimeout(() => {
-      if (mounted) {
-        console.warn("Auth initialization timeout - setting loading to false");
-        setLoading(false);
+      if (!mounted) return;
+      try {
+        const current = getCurrentUser();
+        if (current) {
+          console.warn("Auth init fallback: using currentUser", { email: current.email });
+          setUser(current);
+        } else {
+          console.warn("Auth init fallback: no currentUser");
+        }
+      } catch (e) {
+        console.error("Auth init fallback error", e);
+      } finally {
+        if (mounted) setLoading(false);
       }
-    }, 5000);
+    }, 2000);
 
     return () => {
       mounted = false;

@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AreaChartCard, type SeriesPoint } from "@/components/area-chart"
-import { useOrganizerData } from "@/hooks/useOrganizerData"
+import { getRevenueByPeriod } from "@/lib/supabase"
 import { type Organizer } from "@/lib/supabase"
 
 interface SalesOverviewProps {
@@ -42,7 +42,6 @@ function GranularityCharts({
   type: 'revenue' | 'tickets'
   formatter: string 
 }) {
-  const { getRevenueData } = useOrganizerData()
   const [dailyData, setDailyData] = useState<SeriesPoint[]>([])
   const [weeklyData, setWeeklyData] = useState<SeriesPoint[]>([])
   const [monthlyData, setMonthlyData] = useState<SeriesPoint[]>([])
@@ -50,7 +49,7 @@ function GranularityCharts({
 
   useEffect(() => {
     if (!organizer) {
-      // Use fallback mock data if no organizer
+  // If no organizer, keep empty data
       setDailyData(buildFallbackSeries(14, type === 'revenue' ? 1200 : 120, 0.3))
       setWeeklyData(buildFallbackSeries(12, type === 'revenue' ? 6000 : 600, 0.2))
       setMonthlyData(buildFallbackSeries(6, type === 'revenue' ? 24000 : 2400, 0.15))
@@ -63,25 +62,25 @@ function GranularityCharts({
         setLoading(true)
         
         // Fetch data for different periods
-        const [daily, weekly, monthly] = await Promise.all([
-          getRevenueData('daily'),
-          getRevenueData('weekly'),
-          getRevenueData('monthly')
+        const [dailyRes, weeklyRes, monthlyRes] = await Promise.all([
+          getRevenueByPeriod(organizer.id, 'daily'),
+          getRevenueByPeriod(organizer.id, 'weekly'),
+          getRevenueByPeriod(organizer.id, 'monthly')
         ])
 
         // Transform data to chart format
-        const transformData = (data: any[], valueKey: string) => 
-          data.map((item, index) => ({
+        const transformData = (data: any[]) => 
+          (data || []).map((item: any, index: number) => ({
             x: item.period_label || `P${index + 1}`,
             y: type === 'revenue' ? item.total_revenue || 0 : item.total_bookings || 0
           }))
 
-        setDailyData(transformData(daily, type))
-        setWeeklyData(transformData(weekly, type))
-        setMonthlyData(transformData(monthly, type))
+        setDailyData(transformData(dailyRes.data || []))
+        setWeeklyData(transformData(weeklyRes.data || []))
+        setMonthlyData(transformData(monthlyRes.data || []))
       } catch (error) {
         console.error('Error fetching chart data:', error)
-        // Fallback to mock data on error
+  // Keep empty on error
         setDailyData(buildFallbackSeries(14, type === 'revenue' ? 1200 : 120, 0.3))
         setWeeklyData(buildFallbackSeries(12, type === 'revenue' ? 6000 : 600, 0.2))
         setMonthlyData(buildFallbackSeries(6, type === 'revenue' ? 24000 : 2400, 0.15))
@@ -91,7 +90,7 @@ function GranularityCharts({
     }
 
     fetchData()
-  }, [organizer, type, getRevenueData])
+  }, [organizer?.id, type])
 
   if (loading) {
     return <div className="h-64 bg-muted animate-pulse rounded-xl" />
@@ -118,7 +117,7 @@ function GranularityCharts({
   )
 }
 
-// Fallback function for mock data when real data is not available
+// No mock fallback
 function buildFallbackSeries(len = 12, base = 1000, variance = 0.25) {
   const out: SeriesPoint[] = []
   let last = base

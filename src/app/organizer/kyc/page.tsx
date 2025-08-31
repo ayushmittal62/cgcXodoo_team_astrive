@@ -6,23 +6,45 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/AuthContext"
+import { getOrganizerByUserId, updateOrganizerProfile, supabase } from "@/lib/supabase"
 
 type KycStatus = "not_submitted" | "pending" | "verified" | "rejected"
-const KYC_KEY = "organizer_kyc_status_v1"
+const KYC_KEY = "organizer_kyc_status_v1" // legacy local key (kept for backward-compat only)
 
 export default function OrganizerKycPage() {
   const { toast } = useToast()
+  const { userProfile } = useAuth()
   const [status, setStatus] = useState<KycStatus>("not_submitted")
   const [pan, setPan] = useState("")
   const [gst, setGst] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [docIdFile, setDocIdFile] = useState<File | null>(null)
+  const [docBankFile, setDocBankFile] = useState<File | null>(null)
 
+  // On mount, load current organizer DB state
   useEffect(() => {
-    const raw = localStorage.getItem(KYC_KEY)
-    if (raw) setStatus(raw as KycStatus)
-  }, [])
-  useEffect(() => {
-    localStorage.setItem(KYC_KEY, status)
-  }, [status])
+    let mounted = true
+    async function load() {
+      if (!userProfile?.email) return
+      try {
+        const email = userProfile.email.toLowerCase()
+        const { data, error } = await getOrganizerByUserId(email)
+        if (error) {
+          // if no rows, show not_submitted
+          if ((error as any).code === 'PGRST116' || (error as any).message?.includes('No rows')) {
+            mounted && setStatus('not_submitted')
+          }
+        } else if (data) {
+          mounted && setStatus(data.kyc_verified ? 'verified' : 'pending')
+          mounted && setPan(data.pan_number ?? '')
+          // we don't store GST; reuse placeholder field
+        }
+      } catch {}
+    }
+    load()
+    return () => { mounted = false }
+  }, [userProfile?.email])
 
   const statusBadge = useMemo(() => {
     switch (status) {
@@ -37,18 +59,55 @@ export default function OrganizerKycPage() {
     }
   }, [status])
 
-  function submit() {
+  async function submit() {
     if (!pan || !gst) {
       toast({ title: "Missing info", description: "Please provide PAN and GST for verification" })
       return
     }
-    setStatus("pending")
-    toast({ title: "KYC submitted", description: "Verification will take up to 24 hours." })
-  }
-
-  function simulateVerify(next: KycStatus) {
-    setStatus(next)
-    toast({ title: "Status updated", description: `KYC is now ${next.replace("_", " ")}` })
+    if (!userProfile?.email) {
+      toast({ title: "Not signed in", description: "Sign in to submit KYC" })
+      return
+    }
+    try {
+      setLoading(true)
+      const email = userProfile.email.toLowerCase()
+      // Optional: upload selected documents to Supabase Storage
+      try {
+        const folder = `kyc/${encodeURIComponent(email)}/${Date.now()}`
+        if (docIdFile) {
+          const { error: up1 } = await supabase
+            .storage
+            .from('kyc-docs')
+            .upload(`${folder}/gov-id_${docIdFile.name}`, docIdFile, {
+              cacheControl: '3600', upsert: false, contentType: docIdFile.type || undefined,
+            })
+          if (up1) console.warn('KYC: gov-id upload failed:', up1)
+        }
+        if (docBankFile) {
+          const { error: up2 } = await supabase
+            .storage
+            .from('kyc-docs')
+            .upload(`${folder}/bank_${docBankFile.name}`, docBankFile, {
+              cacheControl: '3600', upsert: false, contentType: docBankFile.type || undefined,
+            })
+          if (up2) console.warn('KYC: bank statement upload failed:', up2)
+        }
+      } catch (e: any) {
+        console.warn('KYC: upload threw (continuing):', e?.message || String(e))
+      }
+      const { error } = await updateOrganizerProfile(email, {
+        pan_number: pan,
+        aadhaar_number: gst, // reuse as placeholder for demo
+        kyc_verified: false,
+      })
+      if (error) throw error
+      setStatus("pending")
+      toast({ title: "KYC submitted", description: "Your details have been sent for approval." })
+    } catch (e: any) {
+      toast({ title: "Submission failed", description: e?.message ?? String(e) })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -81,32 +140,34 @@ export default function OrganizerKycPage() {
                 <label className="text-sm text-muted-foreground" htmlFor="doc-id">
                   Government ID (PDF or image)
                 </label>
-                <Input id="doc-id" type="file" accept=".pdf,image/*" className="rounded-xl bg-muted/50" />
+                <Input
+                  id="doc-id"
+                  type="file"
+                  accept=".pdf,image/*"
+                  className="rounded-xl bg-muted/50"
+                  onChange={(e) => setDocIdFile(e.target.files?.[0] ?? null)}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm text-muted-foreground" htmlFor="doc-bank">
                   Bank Statement (PDF)
                 </label>
-                <Input id="doc-bank" type="file" accept=".pdf" className="rounded-xl bg-muted/50" />
+                <Input
+                  id="doc-bank"
+                  type="file"
+                  accept=".pdf"
+                  className="rounded-xl bg-muted/50"
+                  onChange={(e) => setDocBankFile(e.target.files?.[0] ?? null)}
+                />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2">
               <Button
-                variant="outline"
-                className="rounded-xl bg-transparent"
-                onClick={() => simulateVerify("verified")}
+                className="rounded-xl cursor-pointer"
+                onClick={submit}
+                disabled={loading || status === 'pending' || status === 'verified'}
               >
-                Simulate Verify
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-xl bg-transparent"
-                onClick={() => simulateVerify("rejected")}
-              >
-                Simulate Reject
-              </Button>
-              <Button className="rounded-xl" onClick={submit}>
-                Submit for Review
+                Submit for approval
               </Button>
             </div>
           </CardContent>

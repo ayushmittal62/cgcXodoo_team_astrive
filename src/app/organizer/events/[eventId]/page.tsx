@@ -1,9 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { mockEvents, mockBookings } from "@/lib/mock-data"
 import { EventHeader } from "@/components/header"
 import { OverviewSection } from "@/components/overview"
 import { AnalyticsSection } from "@/components/analytics"
@@ -12,12 +11,27 @@ import { BookingsSection } from "@/components/bookings"
 import { CouponsSection } from "@/components/coupons"
 import { SettingsSection } from "@/components/settings"
 import type { EventItem } from "@/lib/organizer"
+import { getEventByIdMapped, getEventBookingsMapped } from "@/lib/supabase"
+import type { Booking } from "@/lib/organizer"
 
 export default function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>()
   const router = useRouter()
-  const [events, setEvents] = useState<EventItem[]>(mockEvents)
-  const event = useMemo(() => events.find((e) => e.id === eventId), [events, eventId])
+  const [event, setEvent] = useState<EventItem | null>(null)
+  const [bookings, setBookings] = useState<Booking[]>([])
+
+  useEffect(() => {
+    async function load() {
+      if (!eventId) return
+      const { data: ev } = await getEventByIdMapped(String(eventId))
+      setEvent((ev as any) ?? null)
+      if (ev) {
+        const { data: b } = await getEventBookingsMapped(String(eventId))
+        setBookings((b as any) ?? [])
+      }
+    }
+    load()
+  }, [eventId])
 
   if (!event) {
     return (
@@ -37,11 +51,10 @@ export default function EventDetailPage() {
     )
   }
 
-  const bookingRows = mockBookings.filter((b) => b.eventId === event.id)
-
   function updateEvent(partial: Partial<EventItem>) {
-    if (!event) return;
-    setEvents((prev) => prev.map((e) => (e.id === event.id ? { ...e, ...partial } : e)))
+    if (!event) return
+    setEvent({ ...event, ...partial })
+    // TODO: persist specific fields to Supabase when inline editing is supported
   }
 
   return (
@@ -61,7 +74,7 @@ export default function EventDetailPage() {
 
           <div className="mt-4 space-y-6">
             <TabsContent value="overview" className="m-0">
-              <OverviewSection event={event} bookings={bookingRows} />
+              <OverviewSection event={event} bookings={bookings} />
             </TabsContent>
 
             <TabsContent value="analytics" className="m-0">
@@ -73,7 +86,7 @@ export default function EventDetailPage() {
             </TabsContent>
 
             <TabsContent value="bookings" className="m-0">
-              <BookingsSection event={event} rows={bookingRows} />
+              <BookingsSection event={event} rows={bookings} />
             </TabsContent>
 
             <TabsContent value="coupons" className="m-0">
