@@ -8,7 +8,10 @@
   <img src="https://img.shields.io/badge/Firebase-Auth-ffca28?style=for-the-badge&logo=firebase" alt="Firebase" />
   <img src="https://img.shields.io/badge/Tailwind-CSS-38bdf8?style=for-the-badge&logo=tailwind-css" alt="Tailwind CSS" />
 </div>
-
+<div>
+  ## Video Link
+  [Video Link](https://drive.google.com/file/d/1GcldgN1KxsFYAL_CIS5TujT3pET7ti9g/view?usp=sharing)
+</div>
 <div align="center">
   <h3>🌟 Where Events Come Alive</h3>
   <p>A comprehensive event management platform featuring attendee booking, organizer management, QR-based check-ins, and real-time analytics.</p>
